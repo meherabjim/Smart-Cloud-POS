@@ -1,0 +1,191 @@
+.scanner-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 14px;
+}
+
+.scanner-modal {
+  width: 100%;
+  max-width: 420px;
+  max-height: 92vh;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+.scanner-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.scanner-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.scanner-close-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scanner-close-btn:hover {
+  background: #e2e8f0;
+}
+
+/* IMPORTANT: this fixed height is what actually makes the camera visible */
+.scanner-video-wrapper {
+  position: relative;
+  width: 100%;
+  height: 280px;
+  background: #0f172a;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.scanner-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.scanner-frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 78%;
+  height: 40%;
+  border: 2px solid #22c55e;
+  border-radius: 10px;
+  box-shadow: 0 0 0 2000px rgba(15, 23, 42, 0.35);
+  overflow: hidden;
+}
+
+.scanner-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+  animation: scanner-scan-move 1.8s ease-in-out infinite;
+}
+
+@keyframes scanner-scan-move {
+  0% {
+    top: 0%;
+  }
+  50% {
+    top: 96%;
+  }
+  100% {
+    top: 0%;
+  }
+}
+
+.scanner-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: #64748b;
+  text-align: center;
+}
+
+.scanner-warning {
+  margin-top: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.scanner-manual {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.scanner-input {
+  flex: 1;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+}
+
+.scanner-input:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.08);
+}
+
+.scanner-use-btn {
+  height: 40px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 8px;
+  background: #4f46e5;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.scanner-use-btn:hover {
+  background: #4338ca;
+}
+
+.scanner-demo {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+@media (max-width: 480px) {
+  .scanner-modal {
+    max-width: 100%;
+    border-radius: 12px;
+  }
+
+  .scanner-video-wrapper {
+    height: 240px;
+  }
+
+  .scanner-manual {
+    flex-direction: column;
+  }
+
+  .scanner-use-btn {
+    width: 100%;
+  }
+}
