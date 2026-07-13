@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import axios from "axios";
 import Receipt from "../components/Receipt";
 import BarcodeScanner from "../components/BarcodeScanner";
@@ -11,183 +17,426 @@ const API = axios.create({
 
 API.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("token");
+    const token =
+      localStorage.getItem("token");
+
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization =
+        `Bearer ${token}`;
     }
+
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-function Sales() {
-  const activeStoreId = Number(localStorage.getItem("activeStoreId")) || 1;
-
-  const [searchInput, setSearchInput] = useState("");
-  const [cart, setCart] = useState([]);
-  const [allProducts, setAllProducts] = useState([]);
-  const [message, setMessage] = useState("");
-
-  const [discount, setDiscount] = useState(0);
-  const [tax, setTax] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState("Cash");
-  const [amountReceived, setAmountReceived] = useState("");
-  const [showReceipt, setShowReceipt] = useState(false);
-  const [customerPhone, setCustomerPhone] = useState("");
-  const [receiptData, setReceiptData] = useState(null);
-
-  const [showScanner, setShowScanner] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
-
-  const [heldSales, setHeldSales] = useState(
-    JSON.parse(localStorage.getItem("heldSales") || "[]")
-  );
-  const [showHeldPanel, setShowHeldPanel] = useState(false);
-
-  // ফোন স্ক্যানারের ইনপুট ধরার জন্য হিডেন রেফারেন্স
-  const hiddenInputRef = useRef(null);
-
-  const loadProducts = async () => {
+function Sales({
+  activeStoreId: activeStoreIdProp,
+}) {
+  const currentUser = useMemo(() => {
     try {
-      const res = await API.get(
-        `/api/products?store_id=${activeStoreId}`
+      return JSON.parse(
+        localStorage.getItem("user") || "{}"
       );
-      setAllProducts(res.data || []);
-    } catch (err) {
-      console.error("Error loading products:", err);
-      setMessage("❌ Product load korte problem hocche.");
+    } catch (error) {
+      console.error(
+        "Invalid user information:",
+        error
+      );
+
+      return {};
     }
-  };
+  }, []);
+
+  const isViewer =
+    currentUser.role === "Viewer";
+
+  const initialStoreId =
+    Number(activeStoreIdProp) ||
+    Number(
+      localStorage.getItem("activeStoreId")
+    ) ||
+    1;
+
+  const [
+    activeStoreId,
+    setActiveStoreId,
+  ] = useState(initialStoreId);
+
+  const [searchInput, setSearchInput] =
+    useState("");
+
+  const [cart, setCart] =
+    useState([]);
+
+  const [allProducts, setAllProducts] =
+    useState([]);
+
+  const [message, setMessage] =
+    useState("");
+
+  const [discount, setDiscount] =
+    useState(0);
+
+  const [tax, setTax] =
+    useState(0);
+
+  const [
+    paymentMethod,
+    setPaymentMethod,
+  ] = useState("Cash");
+
+  const [
+    amountReceived,
+    setAmountReceived,
+  ] = useState("");
+
+  const [
+    showReceipt,
+    setShowReceipt,
+  ] = useState(false);
+
+  const [
+    customerPhone,
+    setCustomerPhone,
+  ] = useState("");
+
+  const [
+    receiptData,
+    setReceiptData,
+  ] = useState(null);
+
+  const [
+    showScanner,
+    setShowScanner,
+  ] = useState(false);
+
+  const [
+    showHistory,
+    setShowHistory,
+  ] = useState(false);
+
+  const [heldSales, setHeldSales] =
+    useState(() => {
+      try {
+        return JSON.parse(
+          localStorage.getItem(
+            "heldSales"
+          ) || "[]"
+        );
+      } catch (error) {
+        return [];
+      }
+    });
+
+  const [
+    showHeldPanel,
+    setShowHeldPanel,
+  ] = useState(false);
+
+  const hiddenInputRef =
+    useRef(null);
+
+  const loadProducts = useCallback(
+    async (storeId = activeStoreId) => {
+      try {
+        const res = await API.get(
+          `/api/products?store_id=${storeId}`
+        );
+
+        setAllProducts(
+          Array.isArray(res.data)
+            ? res.data
+            : []
+        );
+
+        setMessage("");
+      } catch (err) {
+        console.error(
+          "Error loading products:",
+          err
+        );
+
+        setAllProducts([]);
+
+        setMessage(
+          err.response?.data?.message ||
+            "❌ Product load korte problem hocche."
+        );
+      }
+    },
+    [activeStoreId]
+  );
+
+  useEffect(() => {
+    const nextStoreId =
+      Number(activeStoreIdProp);
+
+    if (
+      nextStoreId &&
+      nextStoreId !== activeStoreId
+    ) {
+      setActiveStoreId(nextStoreId);
+    }
+  }, [
+    activeStoreIdProp,
+    activeStoreId,
+  ]);
 
   useEffect(() => {
     loadProducts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadProducts]);
 
   useEffect(() => {
-    const handleStoreSwitch = () => {
-      const currentStoreId = Number(localStorage.getItem("activeStoreId")) || 1;
+    const handleStoreSwitch = (event) => {
+      const eventStoreId =
+        Number(
+          event?.detail?.storeId
+        );
 
-      API.get(`/api/products?store_id=${currentStoreId}`)
-        .then((res) => setAllProducts(res.data || []))
-        .catch((err) => {
-          console.error("Error loading products:", err);
-          setMessage("❌ Product load korte problem hocche.");
-        });
+      const savedStoreId =
+        Number(
+          localStorage.getItem(
+            "activeStoreId"
+          )
+        );
+
+      const nextStoreId =
+        eventStoreId ||
+        savedStoreId ||
+        1;
+
+      setActiveStoreId(nextStoreId);
+      setCart([]);
+      setSearchInput("");
+      setMessage("");
     };
 
-    window.addEventListener("storage", handleStoreSwitch);
-    window.addEventListener("storeChanged", handleStoreSwitch);
+    window.addEventListener(
+      "storage",
+      handleStoreSwitch
+    );
+
+    window.addEventListener(
+      "storeChanged",
+      handleStoreSwitch
+    );
 
     return () => {
-      window.removeEventListener("storage", handleStoreSwitch);
-      window.removeEventListener("storeChanged", handleStoreSwitch);
+      window.removeEventListener(
+        "storage",
+        handleStoreSwitch
+      );
+
+      window.removeEventListener(
+        "storeChanged",
+        handleStoreSwitch
+      );
     };
   }, []);
 
-  // ==================== ফোন/USB স্ক্যানার ক্যাচার ====================
-  // হিডেন ইনপুট সবসময় ফোকাসড রাখা হয় (কোনো ক্লিক/ট্যাপ ছাড়াই), যাতে
-  // extension/network-based scanner app সবসময় ডেটা বসানোর জায়গা পায়।
-  // ইউজার real field (search/qty/tax/phone/amount/payment) ব্যবহার করলে
-  // সেখানেই focus থাকতে দেওয়া হয়, বাকি সব সময় hidden input-এই ফোকাস ফিরে আসে।
   useEffect(() => {
-    const focusHidden = () => {
+    if (isViewer) {
+      return undefined;
+    }
+
+    const focusHiddenInput = () => {
       if (hiddenInputRef.current) {
         hiddenInputRef.current.focus();
       }
     };
 
-    const isRealFieldFocused = () => {
-      const el = document.activeElement;
-      if (!el || el === hiddenInputRef.current) return false;
-      const tag = el.tagName;
-      return tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA";
+    const isNormalFieldFocused = () => {
+      const element =
+        document.activeElement;
+
+      if (
+        !element ||
+        element === hiddenInputRef.current
+      ) {
+        return false;
+      }
+
+      return [
+        "INPUT",
+        "SELECT",
+        "TEXTAREA",
+      ].includes(element.tagName);
     };
 
-    const refocusIfIdle = () => {
-      if (document.activeElement === hiddenInputRef.current) return;
-      if (isRealFieldFocused()) return; // ইউজার ইচ্ছাকৃতভাবে অন্য field ব্যবহার করছে
-      focusHidden();
+    const refocusWhenIdle = () => {
+      if (
+        document.activeElement ===
+        hiddenInputRef.current
+      ) {
+        return;
+      }
+
+      if (isNormalFieldFocused()) {
+        return;
+      }
+
+      focusHiddenInput();
     };
 
-    focusHidden();
+    focusHiddenInput();
 
-    const intervalId = setInterval(refocusIfIdle, 300);
-    window.addEventListener("click", refocusIfIdle);
+    const intervalId = setInterval(
+      refocusWhenIdle,
+      300
+    );
+
+    window.addEventListener(
+      "click",
+      refocusWhenIdle
+    );
 
     return () => {
       clearInterval(intervalId);
-      window.removeEventListener("click", refocusIfIdle);
-    };
-  }, []);
 
-  const handleHiddenKeyDown = (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const code = e.target.value.trim();
-      e.target.value = "";
+      window.removeEventListener(
+        "click",
+        refocusWhenIdle
+      );
+    };
+  }, [isViewer]);
+
+  const preventViewerAction = () => {
+    if (!isViewer) {
+      return false;
+    }
+
+    setMessage(
+      "👁 Demo Viewer has read-only access."
+    );
+
+    return true;
+  };
+
+  const handleHiddenKeyDown = (event) => {
+    if (isViewer) {
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+
+      const code =
+        event.target.value.trim();
+
+      event.target.value = "";
+
       if (code) {
         handleScanSuccess(code);
       }
     }
   };
-  // ====================================================================
 
-  const handleScanSuccess = (scannedCode) => {
-    console.log("Scanned Barcode Received:", scannedCode);
-    const code = String(scannedCode).trim().toLowerCase();
+  const handleScanSuccess = (
+    scannedCode
+  ) => {
+    if (preventViewerAction()) {
+      return;
+    }
 
-    const matchedProduct = allProducts.find(
-      (p) => String(p.barcode || "").trim().toLowerCase() === code
-    );
+    const code = String(
+      scannedCode
+    )
+      .trim()
+      .toLowerCase();
+
+    const matchedProduct =
+      allProducts.find(
+        (product) =>
+          String(
+            product.barcode || ""
+          )
+            .trim()
+            .toLowerCase() === code
+      );
 
     if (!matchedProduct) {
-      setMessage(`❌ "${scannedCode}" barcode-er kono product paoa jayni ei store-e!`);
+      setMessage(
+        `❌ "${scannedCode}" barcode-er kono product paoa jayni ei store-e!`
+      );
+
       return;
     }
 
     if (
-      matchedProduct.store_id !== undefined &&
-      Number(matchedProduct.store_id) !== Number(activeStoreId)
+      matchedProduct.store_id !==
+        undefined &&
+      Number(
+        matchedProduct.store_id
+      ) !== Number(activeStoreId)
     ) {
       setMessage(
-        `❌ Ei barcode Store #${matchedProduct.store_id}-er product, current store #${activeStoreId} noy!`
+        `❌ Ei barcode Store #${matchedProduct.store_id}-er product.`
       );
+
       return;
     }
 
     addToCart(matchedProduct);
-    setMessage("");
   };
 
-  const addToCart = (matchedProduct) => {
-    const originalPrice = parseFloat(matchedProduct.selling_price) || 0;
-    const discountPercent = Number(matchedProduct.discount_percent) || 0;
-    const discountedPrice =
-      discountPercent > 0
-        ? originalPrice - (originalPrice * discountPercent) / 100
+  const addToCart = (product) => {
+    if (preventViewerAction()) {
+      return;
+    }
+
+    const originalPrice =
+      Number(
+        product.selling_price
+      ) || 0;
+
+    const productDiscount =
+      Number(
+        product.discount_percent
+      ) || 0;
+
+    const finalPrice =
+      productDiscount > 0
+        ? originalPrice -
+          (originalPrice *
+            productDiscount) /
+            100
         : originalPrice;
 
-    setCart((prevCart) => {
-      const existingItem = prevCart.find((item) => item.id === matchedProduct.id);
+    setCart((previousCart) => {
+      const existingItem =
+        previousCart.find(
+          (item) =>
+            Number(item.id) ===
+            Number(product.id)
+        );
 
       if (existingItem) {
-        return prevCart.map((item) =>
-          item.id === matchedProduct.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
+        return previousCart.map(
+          (item) =>
+            Number(item.id) ===
+            Number(product.id)
+              ? {
+                  ...item,
+                  quantity:
+                    item.quantity + 1,
+                }
+              : item
         );
       }
 
       return [
-        ...prevCart,
+        ...previousCart,
         {
-          id: matchedProduct.id,
-          name: matchedProduct.name,
-          barcode: matchedProduct.barcode,
-          original_price: originalPrice,
-          discount_percent: discountPercent,
-          selling_price: discountedPrice,
+          id: product.id,
+          name: product.name,
+          barcode: product.barcode,
+          original_price:
+            originalPrice,
+          discount_percent:
+            productDiscount,
+          selling_price:
+            finalPrice,
           quantity: 1,
         },
       ];
@@ -197,143 +446,295 @@ function Sales() {
     setMessage("");
   };
 
-  const filteredSuggestions = useMemo(() => {
-    const keyword = searchInput.trim().toLowerCase();
-    if (!keyword) return [];
+  const filteredSuggestions =
+    useMemo(() => {
+      const keyword =
+        searchInput
+          .trim()
+          .toLowerCase();
 
-    return allProducts
-      .filter(
-        (p) =>
-          p.name?.toLowerCase().includes(keyword) ||
-          String(p.barcode || "").toLowerCase().includes(keyword)
-      )
-      .slice(0, 8);
-  }, [searchInput, allProducts]);
+      if (!keyword) {
+        return [];
+      }
 
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    setMessage("");
+      return allProducts
+        .filter(
+          (product) =>
+            product.name
+              ?.toLowerCase()
+              .includes(keyword) ||
+            String(
+              product.barcode || ""
+            )
+              .toLowerCase()
+              .includes(keyword)
+        )
+        .slice(0, 8);
+    }, [searchInput, allProducts]);
 
-    const keyword = searchInput.trim().toLowerCase();
-    if (!keyword) return;
+  const handleSearchSubmit = (
+    event
+  ) => {
+    event.preventDefault();
 
-    const exactBarcodeMatch = allProducts.find(
-      (p) => String(p.barcode || "").trim().toLowerCase() === keyword
-    );
-
-    if (exactBarcodeMatch) {
-      addToCart(exactBarcodeMatch);
+    if (preventViewerAction()) {
       return;
     }
 
-    const exactNameMatch = allProducts.find(
-      (p) => p.name?.trim().toLowerCase() === keyword
-    );
+    setMessage("");
+
+    const keyword =
+      searchInput
+        .trim()
+        .toLowerCase();
+
+    if (!keyword) {
+      return;
+    }
+
+    const exactBarcodeMatch =
+      allProducts.find(
+        (product) =>
+          String(
+            product.barcode || ""
+          )
+            .trim()
+            .toLowerCase() ===
+          keyword
+      );
+
+    if (exactBarcodeMatch) {
+      addToCart(
+        exactBarcodeMatch
+      );
+
+      return;
+    }
+
+    const exactNameMatch =
+      allProducts.find(
+        (product) =>
+          product.name
+            ?.trim()
+            .toLowerCase() ===
+          keyword
+      );
 
     if (exactNameMatch) {
       addToCart(exactNameMatch);
+
       return;
     }
 
-    if (filteredSuggestions.length === 1) {
-      addToCart(filteredSuggestions[0]);
+    if (
+      filteredSuggestions.length === 1
+    ) {
+      addToCart(
+        filteredSuggestions[0]
+      );
+
       return;
     }
 
-    if (filteredSuggestions.length > 1) {
-      setMessage("একাধিক product পাওয়া গেছে — নিচ থেকে select করুন।");
+    if (
+      filteredSuggestions.length > 1
+    ) {
+      setMessage(
+        "একাধিক product পাওয়া গেছে — নিচ থেকে select করুন।"
+      );
+
       return;
     }
 
-    setMessage("❌ প্রোডাক্ট পাওয়া যায়নি!");
+    setMessage(
+      "❌ প্রোডাক্ট পাওয়া যায়নি!"
+    );
+
     setSearchInput("");
   };
 
-  const handleQuantityChange = (id, value) => {
-    const qty = Math.max(1, parseInt(value) || 1);
-    setCart(cart.map((item) => (item.id === id ? { ...item, quantity: qty } : item)));
+  const handleQuantityChange = (
+    id,
+    value
+  ) => {
+    if (preventViewerAction()) {
+      return;
+    }
+
+    const quantity = Math.max(
+      1,
+      Number.parseInt(value, 10) || 1
+    );
+
+    setCart((previousCart) =>
+      previousCart.map((item) =>
+        Number(item.id) === Number(id)
+          ? {
+              ...item,
+              quantity,
+            }
+          : item
+      )
+    );
   };
 
   const handleRemoveItem = (id) => {
-    setCart(cart.filter((item) => item.id !== id));
+    if (preventViewerAction()) {
+      return;
+    }
+
+    setCart((previousCart) =>
+      previousCart.filter(
+        (item) =>
+          Number(item.id) !==
+          Number(id)
+      )
+    );
   };
 
   const subtotal = cart.reduce(
-    (sum, item) => sum + item.selling_price * item.quantity,
+    (sum, item) =>
+      sum +
+      Number(item.selling_price) *
+        Number(item.quantity),
     0
   );
 
-  const discountPercent = Number(discount || 0);
-  const discountAmount = subtotal * (discountPercent / 100);
+  const discountPercent =
+    Number(discount) || 0;
 
-  const taxPercent = Number(tax || 0);
-  const taxAmount = (subtotal - discountAmount) * (taxPercent / 100);
+  const discountAmount =
+    subtotal *
+    (discountPercent / 100);
 
-  const totalPayable = subtotal - discountAmount + taxAmount;
-  const paidAmount = Number(amountReceived || totalPayable || 0);
-  const changeAmount = paidAmount - totalPayable;
+  const taxPercent =
+    Number(tax) || 0;
 
-  const handleCompleteSale = async () => {
-    if (cart.length === 0) return;
+  const taxAmount =
+    (subtotal - discountAmount) *
+    (taxPercent / 100);
 
-    try {
-      const res = await API.post("/api/sales/checkout", {
-        items: cart,
-        store_id: activeStoreId,
-        customer_phone: customerPhone,
-        total_amount: subtotal,
-        discount: discountAmount,
-        tax: taxAmount,
-        payable_amount: totalPayable,
-        payment_method: paymentMethod,
-      });
+  const totalPayable =
+    subtotal -
+    discountAmount +
+    taxAmount;
 
-      setReceiptData({
-        sale_id: res.data.sale_id || res.data.invoice_id,
-        date: new Date().toLocaleString(),
-        payment_method: paymentMethod,
-        customer_phone: customerPhone,
-        items: cart,
-        subtotal,
-        discount: discountAmount,
-        discountPercent,
-        tax: taxAmount,
-        taxPercent,
-        total: totalPayable,
-        received: paidAmount,
-        change: paidAmount - totalPayable,
-      });
+  const paidAmount =
+    amountReceived === ""
+      ? totalPayable
+      : Number(amountReceived) || 0;
 
-      setShowReceipt(true);
-      setCart([]);
-      setAmountReceived("");
-      setDiscount(0);
-      setTax(0);
-      setCustomerPhone("");
-      setSearchInput("");
-      setMessage("");
+  const changeAmount =
+    paidAmount - totalPayable;
 
-      loadProducts();
-    } catch (err) {
-      alert("❌ চেকআউট ব্যর্থ হয়েছে: " + (err.response?.data?.message || err.message));
-    }
-  };
+  const handleCompleteSale =
+    async () => {
+      if (preventViewerAction()) {
+        return;
+      }
+
+      if (cart.length === 0) {
+        return;
+      }
+
+      try {
+        const res = await API.post(
+          "/api/sales/checkout",
+          {
+            items: cart,
+            store_id: activeStoreId,
+            customer_phone:
+              customerPhone,
+            total_amount: subtotal,
+            discount:
+              discountAmount,
+            tax: taxAmount,
+            payable_amount:
+              totalPayable,
+            payment_method:
+              paymentMethod,
+          }
+        );
+
+        setReceiptData({
+          sale_id:
+            res.data.sale_id ||
+            res.data.invoice_id,
+          date:
+            new Date().toLocaleString(),
+          payment_method:
+            paymentMethod,
+          customer_phone:
+            customerPhone,
+          items: cart,
+          subtotal,
+          discount:
+            discountAmount,
+          discountPercent,
+          tax: taxAmount,
+          taxPercent,
+          total: totalPayable,
+          received: paidAmount,
+          change:
+            paidAmount -
+            totalPayable,
+        });
+
+        setShowReceipt(true);
+        setCart([]);
+        setAmountReceived("");
+        setDiscount(0);
+        setTax(0);
+        setCustomerPhone("");
+        setSearchInput("");
+        setMessage("");
+
+        loadProducts();
+      } catch (err) {
+        alert(
+          "❌ Checkout failed: " +
+            (err.response?.data
+              ?.message ||
+              err.message)
+        );
+      }
+    };
 
   const handleHoldSale = () => {
-    if (cart.length === 0) return;
+    if (preventViewerAction()) {
+      return;
+    }
 
-    const held = {
+    if (cart.length === 0) {
+      return;
+    }
+
+    const heldSale = {
       id: Date.now(),
-      customer_phone: customerPhone,
+      customer_phone:
+        customerPhone,
       cart,
       discount,
       tax,
-      held_at: new Date().toLocaleString(),
+      held_at:
+        new Date().toLocaleString(),
     };
 
-    const updated = [...heldSales, held];
-    setHeldSales(updated);
-    localStorage.setItem("heldSales", JSON.stringify(updated));
+    const updatedHeldSales = [
+      ...heldSales,
+      heldSale,
+    ];
+
+    setHeldSales(
+      updatedHeldSales
+    );
+
+    localStorage.setItem(
+      "heldSales",
+      JSON.stringify(
+        updatedHeldSales
+      )
+    );
 
     setCart([]);
     setCustomerPhone("");
@@ -342,38 +743,99 @@ function Sales() {
     setAmountReceived("");
     setSearchInput("");
     setMessage("");
-
-    alert("✅ Sale held! Pore abar resume korte parbe.");
   };
 
-  const handleResumeSale = (heldId) => {
-    if (cart.length > 0) {
-      const ok = window.confirm(
-        "Current cart-e item ache. Held sale load korle current cart replace hoye jabe. Continue?"
-      );
-      if (!ok) return;
+  const handleResumeSale = (
+    heldId
+  ) => {
+    if (preventViewerAction()) {
+      return;
     }
 
-    const held = heldSales.find((h) => h.id === heldId);
-    if (!held) return;
+    if (cart.length > 0) {
+      const confirmed =
+        window.confirm(
+          "Current cart will be replaced. Continue?"
+        );
 
-    setCart(held.cart || []);
-    setCustomerPhone(held.customer_phone || "");
-    setDiscount(held.discount || 0);
-    setTax(held.tax || 0);
+      if (!confirmed) {
+        return;
+      }
+    }
 
-    const updated = heldSales.filter((h) => h.id !== heldId);
-    setHeldSales(updated);
-    localStorage.setItem("heldSales", JSON.stringify(updated));
+    const heldSale =
+      heldSales.find(
+        (item) =>
+          item.id === heldId
+      );
+
+    if (!heldSale) {
+      return;
+    }
+
+    setCart(heldSale.cart || []);
+    setCustomerPhone(
+      heldSale.customer_phone || ""
+    );
+    setDiscount(
+      heldSale.discount || 0
+    );
+    setTax(
+      heldSale.tax || 0
+    );
+
+    const updatedHeldSales =
+      heldSales.filter(
+        (item) =>
+          item.id !== heldId
+      );
+
+    setHeldSales(
+      updatedHeldSales
+    );
+
+    localStorage.setItem(
+      "heldSales",
+      JSON.stringify(
+        updatedHeldSales
+      )
+    );
+
     setShowHeldPanel(false);
   };
 
-  const handleDeleteHeldSale = (heldId) => {
-    if (!window.confirm("Ei held sale delete korte chao?")) return;
+  const handleDeleteHeldSale = (
+    heldId
+  ) => {
+    if (preventViewerAction()) {
+      return;
+    }
 
-    const updated = heldSales.filter((h) => h.id !== heldId);
-    setHeldSales(updated);
-    localStorage.setItem("heldSales", JSON.stringify(updated));
+    const confirmed =
+      window.confirm(
+        "Delete this held sale?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const updatedHeldSales =
+      heldSales.filter(
+        (item) =>
+          item.id !== heldId
+      );
+
+    setHeldSales(
+      updatedHeldSales
+    );
+
+    localStorage.setItem(
+      "heldSales",
+      JSON.stringify(
+        updatedHeldSales
+      )
+    );
   };
 
   if (showHistory) {
@@ -383,11 +845,30 @@ function Sales() {
           <button
             type="button"
             className="sales-history-back-btn"
-            onClick={() => setShowHistory(false)}
+            onClick={() =>
+              setShowHistory(false)
+            }
           >
-            ← Back to POS {cart.length > 0 ? `(${cart.length} item cart safe)` : ""}
+            ← Back to POS
           </button>
         </div>
+
+        {isViewer && (
+          <div
+            style={{
+              marginBottom: "16px",
+              padding: "12px 14px",
+              border: "1px solid #bfdbfe",
+              borderRadius: "10px",
+              background: "#eff6ff",
+              color: "#1e40af",
+              fontWeight: 600,
+            }}
+          >
+            👁 Demo Viewer mode: Sales history is
+            read-only.
+          </div>
+        )}
 
         <SalesHistory />
       </div>
@@ -396,87 +877,173 @@ function Sales() {
 
   return (
     <div className="sales-page">
-      <input
-        ref={hiddenInputRef}
-        type="text"
-        autoComplete="off"
-        onKeyDown={handleHiddenKeyDown}
-        style={{
-          position: "absolute",
-          opacity: 0,
-          left: "-9999px",
-          width: "1px",
-          height: "1px",
-        }}
-      />
+      {isViewer && (
+        <div
+          style={{
+            marginBottom: "16px",
+            padding: "12px 14px",
+            border: "1px solid #bfdbfe",
+            borderRadius: "10px",
+            background: "#eff6ff",
+            color: "#1e40af",
+            fontWeight: 600,
+          }}
+        >
+          👁 Demo Viewer mode: You can see the full POS
+          interface and sales history, but all selling
+          actions are disabled.
+        </div>
+      )}
+
+      {!isViewer && (
+        <input
+          ref={hiddenInputRef}
+          type="text"
+          autoComplete="off"
+          onKeyDown={
+            handleHiddenKeyDown
+          }
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            opacity: 0,
+            left: "-9999px",
+            width: "1px",
+            height: "1px",
+          }}
+        />
+      )}
 
       <div className="sales-header">
         <div>
-          <p className="sales-eyebrow">Point of Sale</p>
-          <h2 className="sales-title">🧾 POS / Sales</h2>
-          <p className="sales-subtitle">
-            🏪 Store #{activeStoreId} • Billing Terminal
+          <p className="sales-eyebrow">
+            Point of Sale
           </p>
-          <small style={{ color: "#22c55e", fontWeight: "bold", display: "block", marginTop: "4px" }}>
-            🟢 Phone Scanner Mode Active. (Just scan barcodes anytime)
-          </small>
+
+          <h2 className="sales-title">
+            🧾 POS / Sales
+          </h2>
+
+          <p className="sales-subtitle">
+            🏪 Store #{activeStoreId} • Billing
+            Terminal
+          </p>
+
+          {!isViewer && (
+            <small
+              style={{
+                color: "#22c55e",
+                fontWeight: "bold",
+                display: "block",
+                marginTop: "4px",
+              }}
+            >
+              🟢 Phone Scanner Mode Active
+            </small>
+          )}
         </div>
 
         <button
           type="button"
           className="sales-camera-btn"
-          onClick={() => setShowHistory(true)}
+          onClick={() =>
+            setShowHistory(true)
+          }
         >
           📄 Sales History
         </button>
       </div>
 
       <div className="sales-search-card">
-        <form onSubmit={handleSearchSubmit} className="sales-search-form">
-          <span className="sales-search-icon">🔍</span>
+        <form
+          onSubmit={handleSearchSubmit}
+          className="sales-search-form"
+        >
+          <span className="sales-search-icon">
+            🔍
+          </span>
+
           <input
             type="text"
-            placeholder="Scan barcode or search by product name..."
+            placeholder={
+              isViewer
+                ? "Search disabled in Viewer mode"
+                : "Scan barcode or search by product name..."
+            }
             value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
+            onChange={(event) =>
+              setSearchInput(
+                event.target.value
+              )
+            }
             className="sales-search-input"
+            disabled={isViewer}
           />
-          <button type="submit" className="sales-search-btn">
+
+          <button
+            type="submit"
+            className="sales-search-btn"
+            disabled={isViewer}
+          >
             Scan / Search
           </button>
+
           <button
             type="button"
             className="sales-camera-btn"
-            onClick={() => setShowScanner(true)}
+            onClick={() =>
+              setShowScanner(true)
+            }
+            disabled={isViewer}
           >
             📷 Camera Scan
           </button>
         </form>
 
-        {message && <p className="sales-message">{message}</p>}
-
-        {filteredSuggestions.length > 0 && searchInput.trim() && (
-          <div className="sales-suggestions">
-            {filteredSuggestions.map((product) => (
-              <button
-                key={product.id}
-                type="button"
-                className="sales-suggestion-item"
-                onClick={() => addToCart(product)}
-              >
-                <div className="sales-suggestion-top">
-                  <span className="sales-suggestion-name">{product.name}</span>
-                  <span className="sales-suggestion-price">
-                    ৳{Number(product.selling_price).toFixed(2)}
-                  </span>
-                </div>
-                <div className="sales-suggestion-meta">
-                  #{product.barcode || "N/A"}
-                </div>
-              </button>
-            ))}
-          </div>
+        {message && (
+          <p className="sales-message">
+            {message}
+          </p>
         )}
+
+        {filteredSuggestions.length >
+          0 &&
+          searchInput.trim() && (
+            <div className="sales-suggestions">
+              {filteredSuggestions.map(
+                (product) => (
+                  <button
+                    key={product.id}
+                    type="button"
+                    className="sales-suggestion-item"
+                    onClick={() =>
+                      addToCart(product)
+                    }
+                    disabled={isViewer}
+                  >
+                    <div className="sales-suggestion-top">
+                      <span className="sales-suggestion-name">
+                        {product.name}
+                      </span>
+
+                      <span className="sales-suggestion-price">
+                        ৳
+                        {Number(
+                          product.selling_price
+                        ).toFixed(2)}
+                      </span>
+                    </div>
+
+                    <div className="sales-suggestion-meta">
+                      #
+                      {product.barcode ||
+                        "N/A"}
+                    </div>
+                  </button>
+                )
+              )}
+            </div>
+          )}
       </div>
 
       <div className="sales-main-grid">
@@ -488,61 +1055,123 @@ function Sales() {
                   <tr>
                     <th>Item</th>
                     <th>Price</th>
-                    <th className="w-qty">Qty</th>
+
+                    <th className="w-qty">
+                      Qty
+                    </th>
+
                     <th>Total</th>
-                    <th className="w-action"></th>
+
+                    <th className="w-action" />
                   </tr>
                 </thead>
+
                 <tbody>
                   {cart.length === 0 ? (
                     <tr>
-                      <td colSpan="5" className="sales-empty">
-                        <div className="sales-empty-icon">🛒</div>
-                        Cart is empty. Scan barcode or type product name.
+                      <td
+                        colSpan="5"
+                        className="sales-empty"
+                      >
+                        <div className="sales-empty-icon">
+                          🛒
+                        </div>
+
+                        {isViewer
+                          ? "Viewer mode — cart actions are disabled."
+                          : "Cart is empty. Scan barcode or type product name."}
                       </td>
                     </tr>
                   ) : (
                     cart.map((item) => (
                       <tr key={item.id}>
                         <td>
-                          <div className="sales-item-name">{item.name}</div>
-                          <div className="sales-item-sub">#{item.barcode}</div>
+                          <div className="sales-item-name">
+                            {item.name}
+                          </div>
+
+                          <div className="sales-item-sub">
+                            #{item.barcode}
+                          </div>
                         </td>
+
                         <td>
-                          {item.discount_percent > 0 ? (
+                          {Number(
+                            item.discount_percent
+                          ) > 0 ? (
                             <div className="sales-price-discounted">
                               <span className="sales-price-original">
-                                ৳{Number(item.original_price).toFixed(2)}
+                                ৳
+                                {Number(
+                                  item.original_price
+                                ).toFixed(2)}
                               </span>
+
                               <span className="sales-price-final">
-                                ৳{item.selling_price.toFixed(2)}
+                                ৳
+                                {Number(
+                                  item.selling_price
+                                ).toFixed(2)}
                               </span>
+
                               <span className="sales-discount-badge">
-                                {item.discount_percent}% off
+                                {
+                                  item.discount_percent
+                                }
+                                % off
                               </span>
                             </div>
                           ) : (
-                            <span>৳{item.selling_price.toFixed(2)}</span>
+                            <span>
+                              ৳
+                              {Number(
+                                item.selling_price
+                              ).toFixed(2)}
+                            </span>
                           )}
                         </td>
+
                         <td>
                           <input
                             type="number"
                             min="1"
-                            value={item.quantity}
-                            onChange={(e) =>
-                              handleQuantityChange(item.id, e.target.value)
+                            value={
+                              item.quantity
+                            }
+                            onChange={(event) =>
+                              handleQuantityChange(
+                                item.id,
+                                event.target
+                                  .value
+                              )
                             }
                             className="sales-qty-input"
+                            disabled={isViewer}
                           />
                         </td>
+
                         <td className="sales-item-total">
-                          ৳{(item.selling_price * item.quantity).toFixed(2)}
+                          ৳
+                          {(
+                            Number(
+                              item.selling_price
+                            ) *
+                            Number(
+                              item.quantity
+                            )
+                          ).toFixed(2)}
                         </td>
+
                         <td>
                           <button
-                            onClick={() => handleRemoveItem(item.id)}
+                            type="button"
+                            onClick={() =>
+                              handleRemoveItem(
+                                item.id
+                              )
+                            }
                             className="sales-icon-btn danger"
+                            disabled={isViewer}
                           >
                             🗑️
                           </button>
@@ -556,57 +1185,112 @@ function Sales() {
           </div>
 
           <div className="sales-actions">
-            <button onClick={() => setCart([])} className="sales-btn danger">
+            <button
+              type="button"
+              onClick={() =>
+                setCart([])
+              }
+              className="sales-btn danger"
+              disabled={
+                isViewer ||
+                cart.length === 0
+              }
+            >
               🗑 Clear Cart
             </button>
 
             <button
+              type="button"
               onClick={handleHoldSale}
-              disabled={cart.length === 0}
+              disabled={
+                isViewer ||
+                cart.length === 0
+              }
               className="sales-btn warning"
             >
               ⏸ Hold Sale
             </button>
 
             <button
-              onClick={() => setShowHeldPanel(true)}
+              type="button"
+              onClick={() =>
+                setShowHeldPanel(true)
+              }
               className="sales-btn purple"
+              disabled={isViewer}
             >
               📋 Held Sales
+
               {heldSales.length > 0 && (
-                <span className="sales-badge-count">{heldSales.length}</span>
+                <span className="sales-badge-count">
+                  {heldSales.length}
+                </span>
               )}
             </button>
 
             <div className="sales-inline-box">
-              <label>Discount %</label>
+              <label>
+                Discount %
+              </label>
+
               <input
                 type="number"
                 value={discount}
-                onChange={(e) => setDiscount(Number(e.target.value))}
+                onChange={(event) =>
+                  setDiscount(
+                    Number(
+                      event.target.value
+                    )
+                  )
+                }
+                disabled={isViewer}
               />
             </div>
           </div>
         </div>
 
         <div className="sales-summary-card">
-          <h3 className="sales-summary-title">💳 Billing Summary</h3>
+          <h3 className="sales-summary-title">
+            💳 Billing Summary
+          </h3>
 
-          <SummaryRow label="Subtotal" value={`৳${subtotal.toFixed(2)}`} />
+          <SummaryRow
+            label="Subtotal"
+            value={`৳${subtotal.toFixed(
+              2
+            )}`}
+          />
+
           <SummaryRow
             label="Discount"
-            value={`-৳${discountAmount.toFixed(2)}`}
+            value={`-৳${discountAmount.toFixed(
+              2
+            )}`}
             color="var(--sales-danger)"
           />
-          <SummaryRow label="Tax" value={`৳${taxAmount.toFixed(2)}`} />
+
+          <SummaryRow
+            label="Tax"
+            value={`৳${taxAmount.toFixed(
+              2
+            )}`}
+          />
 
           <div className="sales-field">
             <label>Tax %</label>
+
             <input
               type="number"
               value={tax}
-              onChange={(e) => setTax(Number(e.target.value))}
+              onChange={(event) =>
+                setTax(
+                  Number(
+                    event.target.value
+                  )
+                )
+              }
               className="sales-input"
+              disabled={isViewer}
             />
           </div>
 
@@ -614,52 +1298,108 @@ function Sales() {
 
           <div className="sales-total-box">
             <span>Total Payable</span>
-            <strong>৳{totalPayable.toFixed(2)}</strong>
+
+            <strong>
+              ৳
+              {totalPayable.toFixed(
+                2
+              )}
+            </strong>
           </div>
 
           <div className="sales-field">
-            <label>Customer Phone</label>
+            <label>
+              Customer Phone
+            </label>
+
             <input
               type="text"
               placeholder="01XXXXXXXXX"
               value={customerPhone}
-              onChange={(e) => setCustomerPhone(e.target.value)}
+              onChange={(event) =>
+                setCustomerPhone(
+                  event.target.value
+                )
+              }
               className="sales-input"
+              disabled={isViewer}
             />
           </div>
 
           <div className="sales-field">
-            <label>Payment Method</label>
+            <label>
+              Payment Method
+            </label>
+
             <select
               value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
+              onChange={(event) =>
+                setPaymentMethod(
+                  event.target.value
+                )
+              }
               className="sales-input"
+              disabled={isViewer}
             >
-              <option value="Cash">💵 Cash</option>
-              <option value="Card">💳 Card</option>
-              <option value="Bkash">📱 bKash / Wallet</option>
+              <option value="Cash">
+                💵 Cash
+              </option>
+
+              <option value="Card">
+                💳 Card
+              </option>
+
+              <option value="Bkash">
+                📱 bKash / Wallet
+              </option>
             </select>
           </div>
 
           <div className="sales-field">
-            <label>Amount Received</label>
+            <label>
+              Amount Received
+            </label>
+
             <input
               type="number"
               placeholder="Enter given amount"
               value={amountReceived}
-              onChange={(e) => setAmountReceived(e.target.value)}
+              onChange={(event) =>
+                setAmountReceived(
+                  event.target.value
+                )
+              }
               className="sales-input"
+              disabled={isViewer}
             />
           </div>
 
-          <div className={`sales-change ${changeAmount >= 0 ? "ok" : "due"}`}>
+          <div
+            className={`sales-change ${
+              changeAmount >= 0
+                ? "ok"
+                : "due"
+            }`}
+          >
             <span>Change / Due</span>
-            <strong>৳{changeAmount.toFixed(2)}</strong>
+
+            <strong>
+              ৳
+              {changeAmount.toFixed(
+                2
+              )}
+            </strong>
           </div>
 
           <button
-            onClick={handleCompleteSale}
-            disabled={cart.length === 0}
+            type="button"
+            onClick={
+              handleCompleteSale
+            }
+            disabled={
+              isViewer ||
+              cart.length === 0
+            }
             className="sales-complete-btn"
           >
             ✔ Complete Sale
@@ -667,57 +1407,108 @@ function Sales() {
         </div>
       </div>
 
-      {showHeldPanel && (
-        <div className="sales-overlay">
-          <div className="sales-modal">
-            <h3 className="sales-modal-title">📋 Held Sales</h3>
+      {showHeldPanel &&
+        !isViewer && (
+          <div className="sales-overlay">
+            <div className="sales-modal">
+              <h3 className="sales-modal-title">
+                📋 Held Sales
+              </h3>
 
-            {heldSales.length === 0 ? (
-              <p className="sales-modal-empty">Kono sale hold-e nai।</p>
-            ) : (
-              heldSales.map((h) => {
-                const total = h.cart.reduce(
-                  (sum, item) => sum + item.selling_price * item.quantity,
-                  0
-                );
+              {heldSales.length === 0 ? (
+                <p className="sales-modal-empty">
+                  No held sales.
+                </p>
+              ) : (
+                heldSales.map(
+                  (heldSale) => {
+                    const heldTotal =
+                      heldSale.cart.reduce(
+                        (sum, item) =>
+                          sum +
+                          Number(
+                            item.selling_price
+                          ) *
+                            Number(
+                              item.quantity
+                            ),
+                        0
+                      );
 
-                return (
-                  <div key={h.id} className="sales-held-card">
-                    <div className="sales-held-top">
-                      <strong>{h.customer_phone || "Walk-in Customer"}</strong>
-                      <span>{h.held_at}</span>
-                    </div>
-                    <p className="sales-held-text">
-                      {h.cart.length} item(s) — ৳{total.toFixed(2)}
-                    </p>
-                    <div className="sales-held-actions">
-                      <button
-                        onClick={() => handleResumeSale(h.id)}
-                        className="sales-btn success small"
+                    return (
+                      <div
+                        key={
+                          heldSale.id
+                        }
+                        className="sales-held-card"
                       >
-                        ▶ Resume
-                      </button>
-                      <button
-                        onClick={() => handleDeleteHeldSale(h.id)}
-                        className="sales-btn danger small"
-                      >
-                        🗑️ Delete
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+                        <div className="sales-held-top">
+                          <strong>
+                            {heldSale.customer_phone ||
+                              "Walk-in Customer"}
+                          </strong>
 
-            <button
-              onClick={() => setShowHeldPanel(false)}
-              className="sales-close-btn"
-            >
-              Close
-            </button>
+                          <span>
+                            {
+                              heldSale.held_at
+                            }
+                          </span>
+                        </div>
+
+                        <p className="sales-held-text">
+                          {
+                            heldSale.cart
+                              .length
+                          }{" "}
+                          item(s) — ৳
+                          {heldTotal.toFixed(
+                            2
+                          )}
+                        </p>
+
+                        <div className="sales-held-actions">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleResumeSale(
+                                heldSale.id
+                              )
+                            }
+                            className="sales-btn success small"
+                          >
+                            ▶ Resume
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleDeleteHeldSale(
+                                heldSale.id
+                              )
+                            }
+                            className="sales-btn danger small"
+                          >
+                            🗑️ Delete
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+                )
+              )}
+
+              <button
+                type="button"
+                onClick={() =>
+                  setShowHeldPanel(false)
+                }
+                className="sales-close-btn"
+              >
+                Close
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {showReceipt && (
         <Receipt
@@ -729,21 +1520,40 @@ function Sales() {
         />
       )}
 
-      <BarcodeScanner
-        open={showScanner}
-        onClose={() => setShowScanner(false)}
-        onScanSuccess={handleScanSuccess}
-        title="Scan Product to Add"
-      />
+      {!isViewer && (
+        <BarcodeScanner
+          open={showScanner}
+          onClose={() =>
+            setShowScanner(false)
+          }
+          onScanSuccess={
+            handleScanSuccess
+          }
+          title="Scan Product to Add"
+        />
+      )}
     </div>
   );
 }
 
-function SummaryRow({ label, value, color }) {
+function SummaryRow({
+  label,
+  value,
+  color,
+}) {
   return (
     <div className="sales-summary-row">
       <span>{label}</span>
-      <strong style={{ color: color || "var(--sales-text)" }}>{value}</strong>
+
+      <strong
+        style={{
+          color:
+            color ||
+            "var(--sales-text)",
+        }}
+      >
+        {value}
+      </strong>
     </div>
   );
 }

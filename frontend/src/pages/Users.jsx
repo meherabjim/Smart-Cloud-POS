@@ -166,6 +166,7 @@ function Users() {
             <option value="Manager">Manager</option>
             <option value="Cashier">Cashier</option>
             <option value="Store Keeper">Store Keeper</option>
+            <option value="Viewer">Viewer</option>
           </select>
 
           <button type="submit" className="users-add-button">

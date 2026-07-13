@@ -1,5 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import axios from "axios";
+
 import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
 import Inventory from "./pages/Inventory";
@@ -10,6 +16,7 @@ import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import Account from "./pages/Account";
 import Damaged from "./pages/Damaged";
+
 import "./App.css";
 
 const API = axios.create({
@@ -19,9 +26,11 @@ const API = axios.create({
 API.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -33,109 +42,165 @@ function App() {
   const [user, setUser] = useState(null);
   const [activeStoreId, setActiveStoreId] = useState(null);
   const [page, setPage] = useState("dashboard");
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
+
   const [checkingAuth, setCheckingAuth] = useState(true);
+
   const [isMobile, setIsMobile] = useState(
     isBrowser ? window.innerWidth <= 992 : false
   );
+
   const [sidebarOpen, setSidebarOpen] = useState(
     isBrowser ? window.innerWidth > 992 : true
   );
 
+  /*
+   * Viewer সব page দেখতে পারবে।
+   * তবে কোনো data add/edit/delete করার permission
+   * backend এবং individual page থেকে block করতে হবে।
+   */
   const menuItems = useMemo(
     () => [
       {
         key: "dashboard",
         label: "Dashboard",
         icon: "📊",
-        roles: ["Admin"],
+        roles: ["Admin", "Viewer"],
       },
       {
         key: "products",
         label: "Products",
         icon: "📦",
-        roles: ["Admin", "Manager", "Store Keeper"],
+        roles: [
+          "Admin",
+          "Manager",
+          "Store Keeper",
+          "Viewer",
+        ],
       },
       {
         key: "inventory",
         label: "Inventory",
         icon: "🔄",
-        roles: ["Admin", "Manager", "Store Keeper"],
+        roles: [
+          "Admin",
+          "Manager",
+          "Store Keeper",
+          "Viewer",
+        ],
       },
       {
         key: "sales",
         label: "POS / Sales",
         icon: "🛒",
-        roles: ["Admin", "Cashier"],
+        roles: ["Admin", "Cashier", "Viewer"],
       },
       {
         key: "reports",
         label: "Reports",
         icon: "📈",
-        roles: ["Admin", "Manager"],
+        roles: ["Admin", "Manager", "Viewer"],
       },
       {
         key: "damaged",
         label: "Damaged / Spoiled",
         icon: "🗑️",
-        roles: ["Admin", "Manager", "Store Keeper"],
+        roles: [
+          "Admin",
+          "Manager",
+          "Store Keeper",
+          "Viewer",
+        ],
       },
       {
         key: "stores",
         label: "Stores",
         icon: "🏪",
-        roles: ["Admin"],
+        roles: ["Admin", "Viewer"],
       },
       {
         key: "users",
         label: "Users",
         icon: "👥",
-        roles: ["Admin"],
+        roles: ["Admin", "Viewer"],
       },
       {
         key: "settings",
         label: "Settings",
         icon: "⚙️",
-        roles: ["Admin"],
+        roles: ["Admin", "Viewer"],
       },
       {
         key: "account",
         label: "My Account",
         icon: "🔑",
-        roles: ["Admin", "Manager", "Cashier", "Store Keeper"],
+        roles: [
+          "Admin",
+          "Manager",
+          "Cashier",
+          "Store Keeper",
+          "Viewer",
+        ],
       },
     ],
     []
   );
 
   const getDefaultPageByRole = useCallback((role) => {
-    if (role === "Cashier") return "sales";
-    if (role === "Store Keeper") return "inventory";
-    if (role === "Manager") return "products";
+    if (role === "Cashier") {
+      return "sales";
+    }
+
+    if (role === "Store Keeper") {
+      return "inventory";
+    }
+
+    if (role === "Manager") {
+      return "products";
+    }
+
+    if (role === "Viewer") {
+      return "dashboard";
+    }
+
     return "dashboard";
   }, []);
 
   const getAllowedPages = useCallback(
     (role) => {
-      return menuItems.filter((item) => item.roles.includes(role)).map((item) => item.key);
+      return menuItems
+        .filter((item) => item.roles.includes(role))
+        .map((item) => item.key);
     },
     [menuItems]
   );
 
+  const hasAllStoreAccess = useCallback((role) => {
+    return role === "Admin" || role === "Viewer";
+  }, []);
+
   useEffect(() => {
-    if (!isBrowser) return;
+    if (!isBrowser) {
+      return undefined;
+    }
 
     const handleResize = () => {
       const mobile = window.innerWidth <= 992;
+
       setIsMobile(mobile);
       setSidebarOpen(!mobile);
     };
 
     handleResize();
+
     window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
   }, [isBrowser]);
 
   useEffect(() => {
@@ -152,22 +217,42 @@ function App() {
         const loggedInUser = res.data;
 
         setUser(loggedInUser);
-        setActiveStoreId(loggedInUser.store_id || null);
 
-        localStorage.setItem("user", JSON.stringify(loggedInUser));
+        const storedStoreId = Number(
+          localStorage.getItem("activeStoreId")
+        );
 
-        if (loggedInUser.store_id) {
-          localStorage.setItem("activeStoreId", String(loggedInUser.store_id));
+        const initialStoreId =
+          storedStoreId ||
+          Number(loggedInUser.store_id) ||
+          null;
+
+        setActiveStoreId(initialStoreId);
+
+        localStorage.setItem(
+          "user",
+          JSON.stringify(loggedInUser)
+        );
+
+        if (initialStoreId) {
+          localStorage.setItem(
+            "activeStoreId",
+            String(initialStoreId)
+          );
         } else {
           localStorage.removeItem("activeStoreId");
         }
 
-        setPage(getDefaultPageByRole(loggedInUser.role));
+        setPage(
+          getDefaultPageByRole(loggedInUser.role)
+        );
       } catch (error) {
         console.error("Auth init failed:", error);
+
         localStorage.removeItem("token");
         localStorage.removeItem("user");
         localStorage.removeItem("activeStoreId");
+
         setUser(null);
         setActiveStoreId(null);
       } finally {
@@ -179,17 +264,28 @@ function App() {
   }, [getDefaultPageByRole]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      return;
+    }
 
     const allowedPages = getAllowedPages(user.role);
+
     if (!allowedPages.includes(page)) {
       setPage(getDefaultPageByRole(user.role));
     }
-  }, [page, user, getAllowedPages, getDefaultPageByRole]);
+  }, [
+    page,
+    user,
+    getAllowedPages,
+    getDefaultPageByRole,
+  ]);
 
   useEffect(() => {
     if (activeStoreId) {
-      localStorage.setItem("activeStoreId", String(activeStoreId));
+      localStorage.setItem(
+        "activeStoreId",
+        String(activeStoreId)
+      );
     } else {
       localStorage.removeItem("activeStoreId");
     }
@@ -209,24 +305,39 @@ function App() {
       const token = res.data.token;
 
       localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify(loggedInUser));
+
+      localStorage.setItem(
+        "user",
+        JSON.stringify(loggedInUser)
+      );
 
       setUser(loggedInUser);
-      setActiveStoreId(loggedInUser.store_id || null);
 
-      if (loggedInUser.store_id) {
-        localStorage.setItem("activeStoreId", String(loggedInUser.store_id));
+      const loginStoreId =
+        Number(loggedInUser.store_id) || null;
+
+      setActiveStoreId(loginStoreId);
+
+      if (loginStoreId) {
+        localStorage.setItem(
+          "activeStoreId",
+          String(loginStoreId)
+        );
       } else {
         localStorage.removeItem("activeStoreId");
       }
 
-      setPage(getDefaultPageByRole(loggedInUser.role));
+      setPage(
+        getDefaultPageByRole(loggedInUser.role)
+      );
+
       setEmail("");
       setPassword("");
       setMessage("");
     } catch (err) {
       setMessage(
-        err.response?.data?.message || "Login failed! Email or password incorrect."
+        err.response?.data?.message ||
+          "Login failed! Email or password incorrect."
       );
     }
   };
@@ -235,12 +346,15 @@ function App() {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     localStorage.removeItem("activeStoreId");
+
     setUser(null);
     setActiveStoreId(null);
     setPage("dashboard");
+
     setEmail("");
     setPassword("");
     setMessage("");
+
     setSidebarOpen(!isMobile);
   };
 
@@ -257,15 +371,21 @@ function App() {
       damaged: "Damaged / Spoiled",
       account: "My Account",
     };
+
     return titles[page] || "Dashboard";
   }, [page]);
 
   const goToPage = (targetPage) => {
-    if (!user) return;
+    if (!user) {
+      return;
+    }
 
     const allowedPages = getAllowedPages(user.role);
+
     if (!allowedPages.includes(targetPage)) {
-      setPage(getDefaultPageByRole(user.role));
+      setPage(
+        getDefaultPageByRole(user.role)
+      );
       return;
     }
 
@@ -277,36 +397,109 @@ function App() {
   };
 
   const renderPage = () => {
-    if (!user) return null;
+    if (!user) {
+      return null;
+    }
 
     const allowedPages = getAllowedPages(user.role);
+
     if (!allowedPages.includes(page)) {
-      return <Dashboard user={user} activeStoreId={activeStoreId} />;
+      return (
+        <Dashboard
+          user={user}
+          activeStoreId={activeStoreId}
+        />
+      );
     }
 
     switch (page) {
       case "dashboard":
-        return <Dashboard user={user} activeStoreId={activeStoreId} />;
+        return (
+          <Dashboard
+            user={user}
+            activeStoreId={activeStoreId}
+          />
+        );
+
       case "products":
-        return <Products user={user} activeStoreId={activeStoreId} />;
+        return (
+          <Products
+            user={user}
+            activeStoreId={activeStoreId}
+          />
+        );
+
       case "inventory":
-        return <Inventory user={user} activeStoreId={activeStoreId} />;
+        return (
+          <Inventory
+            user={user}
+            activeStoreId={activeStoreId}
+          />
+        );
+
       case "sales":
-        return <Sales user={user} activeStoreId={activeStoreId} />;
+        return (
+          <Sales
+            user={user}
+            activeStoreId={activeStoreId}
+          />
+        );
+
       case "reports":
-        return <Reports user={user} activeStoreId={activeStoreId} />;
+        return (
+          <Reports
+            user={user}
+            activeStoreId={activeStoreId}
+          />
+        );
+
       case "stores":
-        return <Stores user={user} activeStoreId={activeStoreId} />;
+        return (
+          <Stores
+            user={user}
+            activeStoreId={activeStoreId}
+          />
+        );
+
       case "users":
-        return <Users user={user} activeStoreId={activeStoreId} />;
+        return (
+          <Users
+            user={user}
+            activeStoreId={activeStoreId}
+          />
+        );
+
       case "settings":
-        return <Settings user={user} activeStoreId={activeStoreId} />;
+        return (
+          <Settings
+            user={user}
+            activeStoreId={activeStoreId}
+          />
+        );
+
       case "account":
-        return <Account user={user} activeStoreId={activeStoreId} />;
+        return (
+          <Account
+            user={user}
+            activeStoreId={activeStoreId}
+          />
+        );
+
       case "damaged":
-        return <Damaged user={user} activeStoreId={activeStoreId} />;
+        return (
+          <Damaged
+            user={user}
+            activeStoreId={activeStoreId}
+          />
+        );
+
       default:
-        return <Dashboard user={user} activeStoreId={activeStoreId} />;
+        return (
+          <Dashboard
+            user={user}
+            activeStoreId={activeStoreId}
+          />
+        );
     }
   };
 
@@ -314,7 +507,8 @@ function App() {
     return (
       <div className="screen-center">
         <div className="loader-card">
-          <div className="loader-spinner"></div>
+          <div className="loader-spinner" />
+
           <p>Checking login...</p>
         </div>
       </div>
@@ -326,76 +520,123 @@ function App() {
       <div className="login-shell">
         <div className="login-card">
           <section className="login-hero">
-            <div className="hero-badge">☁ Cloud POS</div>
-            <h1>Retail management that feels fast, clean and reliable</h1>
+            <div className="hero-badge">
+              ☁ Cloud POS
+            </div>
+
+            <h1>
+              Retail management that feels fast,
+              clean and reliable
+            </h1>
+
             <p>
-              Track sales, inventory, stores, reports and users from one
+              Track sales, inventory, stores,
+              reports and users from one
               professional control panel.
             </p>
 
             <div className="hero-points">
               <div className="hero-point">
                 <span>⚡</span>
+
                 <div>
                   <strong>Fast billing</strong>
-                  <small>Quick POS workflow for daily sales operations.</small>
+
+                  <small>
+                    Quick POS workflow for daily
+                    sales operations.
+                  </small>
                 </div>
               </div>
 
               <div className="hero-point">
                 <span>📦</span>
+
                 <div>
                   <strong>Stock control</strong>
-                  <small>Monitor products and inventory movement easily.</small>
+
+                  <small>
+                    Monitor products and inventory
+                    movement easily.
+                  </small>
                 </div>
               </div>
 
               <div className="hero-point">
                 <span>📊</span>
+
                 <div>
                   <strong>Smart reports</strong>
-                  <small>See business performance in a structured way.</small>
+
+                  <small>
+                    See business performance in a
+                    structured way.
+                  </small>
                 </div>
               </div>
             </div>
           </section>
 
           <section className="login-panel">
-            <form className="login-form" onSubmit={handleLogin}>
+            <form
+              className="login-form"
+              onSubmit={handleLogin}
+            >
               <div className="login-form-head">
                 <h2>Welcome back</h2>
-                <p>Login with your account credentials</p>
+
+                <p>
+                  Login with your account
+                  credentials
+                </p>
               </div>
 
               <div className="form-group">
-                <label htmlFor="email">Email address</label>
+                <label htmlFor="email">
+                  Email address
+                </label>
+
                 <input
                   id="email"
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) =>
+                    setEmail(e.target.value)
+                  }
                   placeholder="name@example.com"
                   required
                 />
               </div>
 
               <div className="form-group">
-                <label htmlFor="password">Password</label>
+                <label htmlFor="password">
+                  Password
+                </label>
+
                 <input
                   id="password"
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) =>
+                    setPassword(e.target.value)
+                  }
                   placeholder="Enter your password"
                   required
                 />
               </div>
 
-              <div className={`form-message ${message ? "show" : ""}`}>
+              <div
+                className={`form-message ${
+                  message ? "show" : ""
+                }`}
+              >
                 {message || " "}
               </div>
 
-              <button type="submit" className="btn-primary">
+              <button
+                type="submit"
+                className="btn-primary"
+              >
                 Login
               </button>
             </form>
@@ -410,16 +651,35 @@ function App() {
       {sidebarOpen && isMobile && (
         <div
           className="sidebar-backdrop"
-          onClick={() => setSidebarOpen(false)}
+          onClick={() =>
+            setSidebarOpen(false)
+          }
+          role="button"
+          tabIndex={0}
+          aria-label="Close sidebar"
+          onKeyDown={(e) => {
+            if (
+              e.key === "Enter" ||
+              e.key === " "
+            ) {
+              setSidebarOpen(false);
+            }
+          }}
         />
       )}
 
-      <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
+      <aside
+        className={`sidebar ${
+          sidebarOpen ? "open" : ""
+        }`}
+      >
         <div className="sidebar-top">
           <div className="brand">
             <div className="brand-mark">☁</div>
+
             <div>
               <h2>Cloud POS</h2>
+
               <p>Retail Control Panel</p>
             </div>
           </div>
@@ -427,8 +687,11 @@ function App() {
           {isMobile && (
             <button
               className="sidebar-close"
-              onClick={() => setSidebarOpen(false)}
+              onClick={() =>
+                setSidebarOpen(false)
+              }
               aria-label="Close sidebar"
+              type="button"
             >
               ✕
             </button>
@@ -437,15 +700,26 @@ function App() {
 
         <nav className="sidebar-nav">
           {menuItems
-            .filter((item) => item.roles.includes(user.role))
+            .filter((item) =>
+              item.roles.includes(user.role)
+            )
             .map((item) => (
               <button
                 key={item.key}
-                className={`nav-btn ${page === item.key ? "active" : ""}`}
-                onClick={() => goToPage(item.key)}
+                className={`nav-btn ${
+                  page === item.key
+                    ? "active"
+                    : ""
+                }`}
+                onClick={() =>
+                  goToPage(item.key)
+                }
                 type="button"
               >
-                <span className="nav-icon">{item.icon}</span>
+                <span className="nav-icon">
+                  {item.icon}
+                </span>
+
                 <span>{item.label}</span>
               </button>
             ))}
@@ -453,19 +727,29 @@ function App() {
 
         <div className="sidebar-footer">
           <div className="profile-card">
-            <div className="profile-avatar">{user.name?.charAt(0) || "U"}</div>
+            <div className="profile-avatar">
+              {user.name?.charAt(0) || "U"}
+            </div>
+
             <div>
               <strong>{user.name}</strong>
+
               <small>
                 {user.role} ·{" "}
-                {user.role === "Admin"
+                {hasAllStoreAccess(user.role)
                   ? "All Stores"
-                  : `Store #${activeStoreId || "-"}`}
+                  : `Store #${
+                      activeStoreId || "-"
+                    }`}
               </small>
             </div>
           </div>
 
-          <button className="logout-btn" onClick={logout} type="button">
+          <button
+            className="logout-btn"
+            onClick={logout}
+            type="button"
+          >
             🚪 Logout
           </button>
         </div>
@@ -477,7 +761,9 @@ function App() {
             {isMobile && (
               <button
                 className="menu-toggle"
-                onClick={() => setSidebarOpen(true)}
+                onClick={() =>
+                  setSidebarOpen(true)
+                }
                 aria-label="Open sidebar"
                 type="button"
               >
@@ -487,24 +773,33 @@ function App() {
 
             <div>
               <h1>{pageTitle}</h1>
-              <p>Cloud POS & Inventory Management System</p>
+
+              <p>
+                Cloud POS & Inventory Management
+                System
+              </p>
             </div>
           </div>
 
           <div className="topbar-right">
             <div className="topbar-user">
-              <span className="user-dot"></span>
+              <span className="user-dot" />
+
               <span>
                 {user.name} · {user.role} ·{" "}
-                {user.role === "Admin"
+                {hasAllStoreAccess(user.role)
                   ? "All Stores"
-                  : `Store #${activeStoreId || "-"}`}
+                  : `Store #${
+                      activeStoreId || "-"
+                    }`}
               </span>
             </div>
           </div>
         </header>
 
-        <section className="content-area">{renderPage()}</section>
+        <section className="content-area">
+          {renderPage()}
+        </section>
       </main>
     </div>
   );
