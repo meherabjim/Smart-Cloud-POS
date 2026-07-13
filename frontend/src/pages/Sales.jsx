@@ -161,6 +161,13 @@ function Sales() {
   };
 
   const addToCart = (matchedProduct) => {
+    const originalPrice = parseFloat(matchedProduct.selling_price) || 0;
+    const discountPercent = Number(matchedProduct.discount_percent) || 0;
+    const discountedPrice =
+      discountPercent > 0
+        ? originalPrice - (originalPrice * discountPercent) / 100
+        : originalPrice;
+
     setCart((prevCart) => {
       const existingItem = prevCart.find((item) => item.id === matchedProduct.id);
 
@@ -178,7 +185,9 @@ function Sales() {
           id: matchedProduct.id,
           name: matchedProduct.name,
           barcode: matchedProduct.barcode,
-          selling_price: parseFloat(matchedProduct.selling_price),
+          original_price: originalPrice,
+          discount_percent: discountPercent,
+          selling_price: discountedPrice,
           quantity: 1,
         },
       ];
@@ -499,7 +508,23 @@ function Sales() {
                           <div className="sales-item-name">{item.name}</div>
                           <div className="sales-item-sub">#{item.barcode}</div>
                         </td>
-                        <td>৳{item.selling_price.toFixed(2)}</td>
+                        <td>
+                          {item.discount_percent > 0 ? (
+                            <div className="sales-price-discounted">
+                              <span className="sales-price-original">
+                                ৳{Number(item.original_price).toFixed(2)}
+                              </span>
+                              <span className="sales-price-final">
+                                ৳{item.selling_price.toFixed(2)}
+                              </span>
+                              <span className="sales-discount-badge">
+                                {item.discount_percent}% off
+                              </span>
+                            </div>
+                          ) : (
+                            <span>৳{item.selling_price.toFixed(2)}</span>
+                          )}
+                        </td>
                         <td>
                           <input
                             type="number"

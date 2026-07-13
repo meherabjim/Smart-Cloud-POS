@@ -30,6 +30,7 @@ function Products() {
     category: "",
     cost_price: "",
     selling_price: "",
+    discount_percent: "",
     stock: "",
   });
 
@@ -98,6 +99,7 @@ function Products() {
         category: form.category,
         cost_price: Number(form.cost_price),
         selling_price: Number(form.selling_price),
+        discount_percent: Number(form.discount_percent) || 0,
         stock: Number(form.stock),
       });
 
@@ -109,6 +111,7 @@ function Products() {
         category: "",
         cost_price: "",
         selling_price: "",
+        discount_percent: "",
         stock: "",
       });
 
@@ -183,6 +186,12 @@ function Products() {
       return;
     }
 
+    const discountPercent = Number(product.discount_percent) || 0;
+    const discountLineHtml =
+      discountPercent > 0
+        ? `<div class="barcode-discount">${discountPercent}% discount</div>`
+        : "";
+
     let barcodesHtml = "";
     for (let i = 0; i < quantity; i++) {
       barcodesHtml += `
@@ -190,6 +199,7 @@ function Products() {
           <div class="barcode-name">${product.name}</div>
           <canvas class="barcode" data-barcode="${product.barcode}"></canvas>
           <div class="barcode-price">Tk ${product.selling_price}</div>
+          ${discountLineHtml}
           <button class="download-btn" data-index="${i}">⬇ Download PNG</button>
         </div>
       `;
@@ -224,6 +234,16 @@ function Products() {
             }
             .barcode-name { font-size: 13px; font-weight: bold; margin-bottom: 4px; }
             .barcode-price { font-size: 12px; margin-top: 2px; margin-bottom: 8px; }
+            .barcode-discount {
+              display: inline-block;
+              font-size: 11px;
+              font-weight: bold;
+              color: #b91c1c;
+              background: #fee2e2;
+              border-radius: 999px;
+              padding: 2px 8px;
+              margin-bottom: 8px;
+            }
             .download-btn {
               padding: 6px 10px;
               border: none;
@@ -361,6 +381,16 @@ function Products() {
 
             <input
               type="number"
+              name="discount_percent"
+              placeholder="Discount % (optional)"
+              min="0"
+              max="100"
+              value={form.discount_percent}
+              onChange={handleChange}
+            />
+
+            <input
+              type="number"
               name="stock"
               placeholder="Stock"
               value={form.stock}
@@ -400,6 +430,7 @@ function Products() {
                   <th>Category</th>
                   <th>Cost</th>
                   <th>Price</th>
+                  <th>Discount</th>
                   <th>Stock</th>
                   <th>Action</th>
                 </tr>
@@ -408,7 +439,7 @@ function Products() {
               <tbody>
                 {filteredProducts.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="products-empty">
+                    <td colSpan="9" className="products-empty">
                       No products found
                     </td>
                   </tr>
@@ -439,6 +470,16 @@ function Products() {
                             Save
                           </button>
                         </div>
+                      </td>
+
+                      <td data-label="Discount">
+                        {Number(p.discount_percent) > 0 ? (
+                          <span className="discount-badge">
+                            {Number(p.discount_percent)}% off
+                          </span>
+                        ) : (
+                          <span className="discount-none">—</span>
+                        )}
                       </td>
 
                       <td data-label="Stock">

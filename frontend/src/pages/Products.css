@@ -204,7 +204,7 @@ body {
 
 .products-form-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -226,7 +226,7 @@ body {
 }
 
 .products-submit-btn {
-  grid-column: span 6;
+  grid-column: span 7;
   height: 42px;
   border: none;
   outline: none;
@@ -244,6 +244,12 @@ body {
 .products-refresh-btn:hover,
 .mini-btn:hover {
   transform: translateY(-1px);
+}
+
+.products-submit-btn:active,
+.products-refresh-btn:active,
+.mini-btn:active {
+  transform: translateY(1px);
 }
 
 .products-toolbar {
@@ -299,7 +305,7 @@ body {
 
 .products-table {
   width: 100%;
-  min-width: 1120px;
+  min-width: 1220px;
   border-collapse: collapse;
 }
 
@@ -397,6 +403,25 @@ body {
   font-weight: 700;
 }
 
+/* ---------- Discount badge ---------- */
+
+.discount-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  color: #b91c1c;
+  font-size: 11.5px;
+  font-weight: 800;
+}
+
+.discount-none {
+  color: var(--prod-text-soft);
+  font-size: 13px;
+}
+
 /* Action column: delete + print + print quantity */
 .action-cell {
   display: flex;
@@ -434,6 +459,16 @@ body {
 .print-qty-input:focus {
   border-color: rgba(79, 70, 229, 0.34);
   box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.08);
+}
+
+@media (max-width: 1200px) {
+  .products-form-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .products-submit-btn {
+    grid-column: span 4;
+  }
 }
 
 @media (max-width: 991px) {

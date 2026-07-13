@@ -35,6 +35,7 @@ exports.addProduct = async (req, res) => {
     category,
     cost_price,
     selling_price,
+    discount_percent,
     stock,
     status,
   } = req.body;
@@ -65,13 +66,14 @@ exports.addProduct = async (req, res) => {
 
     const [result] = await db.query(
       `INSERT INTO products
-      (store_id, name, barcode, category, cost_price, selling_price, stock, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      (store_id, name, barcode, category, cost_price, selling_price, discount_percent, stock, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         name = ?,
         category = ?,
         cost_price = ?,
         selling_price = ?,
+        discount_percent = ?,
         stock = stock + ?,
         status = ?`,
       [
@@ -81,6 +83,7 @@ exports.addProduct = async (req, res) => {
         category,
         Number(cost_price) || 0,
         Number(selling_price) || 0,
+        Number(discount_percent) || 0,
         Number(stock) || 0,
         status || "Active",
 
@@ -89,6 +92,7 @@ exports.addProduct = async (req, res) => {
         category,
         Number(cost_price) || 0,
         Number(selling_price) || 0,
+        Number(discount_percent) || 0,
         Number(stock) || 0,
         status || "Active",
       ]
@@ -128,6 +132,7 @@ exports.updateProduct = async (req, res) => {
     category,
     cost_price,
     selling_price,
+    discount_percent,
     stock,
     status,
   } = req.body;
@@ -160,6 +165,7 @@ exports.updateProduct = async (req, res) => {
          category = ?,
          cost_price = ?,
          selling_price = ?,
+         discount_percent = ?,
          stock = ?,
          status = ?
        WHERE id = ?`,
@@ -169,6 +175,7 @@ exports.updateProduct = async (req, res) => {
         category,
         cost_price,
         selling_price,
+        Number(discount_percent) || 0,
         stock,
         status,
         id,

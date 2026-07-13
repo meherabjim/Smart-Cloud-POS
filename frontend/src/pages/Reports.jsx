@@ -219,6 +219,10 @@ function Reports() {
           <p>Revenue split by payment method for the active store.</p>
         </div>
 
+        <div className="payment-donut-card no-print">
+          <PaymentDonutChart cards={paymentCards} total={totalRevenue} />
+        </div>
+
         <div className="reports-grid no-print">
           {paymentCards.map((item) => (
             <div key={item.title} className={`payment-card ${item.tone}`}>
@@ -347,6 +351,84 @@ function Reports() {
             </div>
           ) : null}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// পেমেন্ট মেথড অনুযায়ী গোল (donut) chart — কোনো external library ছাড়াই, নিজস্ব SVG দিয়ে
+function PaymentDonutChart({ cards, total }) {
+  const size = 160;
+  const strokeWidth = 22;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+
+  const colors = {
+    cash: "#16a34a",
+    mobile: "#f59e0b",
+    card: "#2563eb",
+  };
+
+  let cumulative = 0;
+
+  return (
+    <div className="payment-donut-wrap">
+      <div className="payment-donut-chart">
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke="#eef2f7"
+            strokeWidth={strokeWidth}
+          />
+          {total > 0 &&
+            cards.map((c) => {
+              if (c.value <= 0) return null;
+              const fraction = c.value / total;
+              const segment = fraction * circumference;
+              const dasharray = `${segment} ${circumference - segment}`;
+              const dashoffset = -cumulative;
+              cumulative += segment;
+              return (
+                <circle
+                  key={c.title}
+                  cx={size / 2}
+                  cy={size / 2}
+                  r={radius}
+                  fill="none"
+                  stroke={colors[c.tone] || "#94a3b8"}
+                  strokeWidth={strokeWidth}
+                  strokeDasharray={dasharray}
+                  strokeDashoffset={dashoffset}
+                  transform={`rotate(-90 ${size / 2} ${size / 2})`}
+                >
+                  <title>
+                    {c.title}: {c.share}%
+                  </title>
+                </circle>
+              );
+            })}
+        </svg>
+
+        <div className="payment-donut-center">
+          <span>Total</span>
+          <strong>৳ {total.toFixed(0)}</strong>
+        </div>
+      </div>
+
+      <div className="payment-donut-legend">
+        {cards.map((c) => (
+          <div key={c.title} className="payment-donut-legend-item">
+            <span
+              className="payment-donut-dot"
+              style={{ background: colors[c.tone] || "#94a3b8" }}
+            ></span>
+            <span className="payment-donut-legend-label">{c.title}</span>
+            <span className="payment-donut-legend-share">{c.share}%</span>
+          </div>
+        ))}
       </div>
     </div>
   );
