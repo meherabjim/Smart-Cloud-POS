@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+﻿import React, { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import "./InventoryHistory.css";
 
 const API = axios.create({
-  baseURL: "http://127.0.0.1:5000/api/inventory-history",
+  baseURL: "https://smart-cloud-pos-api.onrender.com/api/inventory-history",
 });
 
 API.interceptors.request.use(
@@ -53,7 +53,7 @@ function InventoryHistory() {
   }, [history, search]);
 
   const formatDate = (iso) => {
-    if (!iso) return "—";
+    if (!iso) return "â€”";
     return new Date(iso).toLocaleString("en-GB", {
       day: "2-digit",
       month: "short",
@@ -158,7 +158,7 @@ function InventoryHistory() {
                       <td data-label="Product" className="ih-product-cell">
                         {h.product_name || "Deleted Product"}
                       </td>
-                      <td data-label="Barcode">{h.barcode || "—"}</td>
+                      <td data-label="Barcode">{h.barcode || "â€”"}</td>
                       <td data-label="Type">
                         <span className={`ih-type-badge ${h.type === "IN" ? "in" : "out"}`}>
                           {h.type === "IN" ? "Stock In" : "Stock Out"}

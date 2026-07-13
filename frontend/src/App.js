@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
@@ -13,7 +13,7 @@ import Damaged from "./pages/Damaged";
 import "./App.css";
 
 const API = axios.create({
-  baseURL: "http://127.0.0.1:5000",
+  baseURL: "https://smart-cloud-pos-api.onrender.com",
 });
 
 API.interceptors.request.use(
@@ -49,61 +49,61 @@ function App() {
       {
         key: "dashboard",
         label: "Dashboard",
-        icon: "📊",
+        icon: "ðŸ“Š",
         roles: ["Admin"],
       },
       {
         key: "products",
         label: "Products",
-        icon: "📦",
+        icon: "ðŸ“¦",
         roles: ["Admin", "Manager", "Store Keeper"],
       },
       {
         key: "inventory",
         label: "Inventory",
-        icon: "🔄",
+        icon: "ðŸ”„",
         roles: ["Admin", "Manager", "Store Keeper"],
       },
       {
         key: "sales",
         label: "POS / Sales",
-        icon: "🛒",
+        icon: "ðŸ›’",
         roles: ["Admin", "Cashier"],
       },
       {
         key: "reports",
         label: "Reports",
-        icon: "📈",
+        icon: "ðŸ“ˆ",
         roles: ["Admin", "Manager"],
       },
       {
         key: "damaged",
         label: "Damaged / Spoiled",
-        icon: "🗑️",
+        icon: "ðŸ—‘ï¸",
         roles: ["Admin", "Manager", "Store Keeper"],
       },
       {
         key: "stores",
         label: "Stores",
-        icon: "🏪",
+        icon: "ðŸª",
         roles: ["Admin"],
       },
       {
         key: "users",
         label: "Users",
-        icon: "👥",
+        icon: "ðŸ‘¥",
         roles: ["Admin"],
       },
       {
         key: "settings",
         label: "Settings",
-        icon: "⚙️",
+        icon: "âš™ï¸",
         roles: ["Admin"],
       },
       {
         key: "account",
         label: "My Account",
-        icon: "🔑",
+        icon: "ðŸ”‘",
         roles: ["Admin", "Manager", "Cashier", "Store Keeper"],
       },
     ],
@@ -326,7 +326,7 @@ function App() {
       <div className="login-shell">
         <div className="login-card">
           <section className="login-hero">
-            <div className="hero-badge">☁ Cloud POS</div>
+            <div className="hero-badge">â˜ Cloud POS</div>
             <h1>Retail management that feels fast, clean and reliable</h1>
             <p>
               Track sales, inventory, stores, reports and users from one
@@ -335,7 +335,7 @@ function App() {
 
             <div className="hero-points">
               <div className="hero-point">
-                <span>⚡</span>
+                <span>âš¡</span>
                 <div>
                   <strong>Fast billing</strong>
                   <small>Quick POS workflow for daily sales operations.</small>
@@ -343,7 +343,7 @@ function App() {
               </div>
 
               <div className="hero-point">
-                <span>📦</span>
+                <span>ðŸ“¦</span>
                 <div>
                   <strong>Stock control</strong>
                   <small>Monitor products and inventory movement easily.</small>
@@ -351,7 +351,7 @@ function App() {
               </div>
 
               <div className="hero-point">
-                <span>📊</span>
+                <span>ðŸ“Š</span>
                 <div>
                   <strong>Smart reports</strong>
                   <small>See business performance in a structured way.</small>
@@ -417,7 +417,7 @@ function App() {
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="sidebar-top">
           <div className="brand">
-            <div className="brand-mark">☁</div>
+            <div className="brand-mark">â˜</div>
             <div>
               <h2>Cloud POS</h2>
               <p>Retail Control Panel</p>
@@ -430,7 +430,7 @@ function App() {
               onClick={() => setSidebarOpen(false)}
               aria-label="Close sidebar"
             >
-              ✕
+              âœ•
             </button>
           )}
         </div>
@@ -457,7 +457,7 @@ function App() {
             <div>
               <strong>{user.name}</strong>
               <small>
-                {user.role} ·{" "}
+                {user.role} Â·{" "}
                 {user.role === "Admin"
                   ? "All Stores"
                   : `Store #${activeStoreId || "-"}`}
@@ -466,7 +466,7 @@ function App() {
           </div>
 
           <button className="logout-btn" onClick={logout} type="button">
-            🚪 Logout
+            ðŸšª Logout
           </button>
         </div>
       </aside>
@@ -481,7 +481,7 @@ function App() {
                 aria-label="Open sidebar"
                 type="button"
               >
-                ☰
+                â˜°
               </button>
             )}
 
@@ -495,7 +495,7 @@ function App() {
             <div className="topbar-user">
               <span className="user-dot"></span>
               <span>
-                {user.name} · {user.role} ·{" "}
+                {user.name} Â· {user.role} Â·{" "}
                 {user.role === "Admin"
                   ? "All Stores"
                   : `Store #${activeStoreId || "-"}`}

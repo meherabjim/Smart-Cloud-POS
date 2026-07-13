@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import axios from "axios";
 
 function App() {
@@ -21,7 +21,7 @@ function App() {
 
     try {
       const res = await axios.post(
-        "http://127.0.0.1:5000/api/auth/login",
+        "https://smart-cloud-pos-api.onrender.com/api/auth/login",
         {
           email,
           password,
@@ -58,7 +58,7 @@ function App() {
           minHeight: "100vh",
         }}
       >
-        <h1>🎉 SaaS POS Dashboard</h1>
+        <h1>ðŸŽ‰ SaaS POS Dashboard</h1>
 
         <hr />
 

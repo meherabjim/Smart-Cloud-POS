@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useCallback, useState } from "react";
+﻿import React, { useEffect, useMemo, useCallback, useState } from "react";
 import axios from "axios";
 import "./Dashboard.css";
 
 const API = axios.create({
-  baseURL: "http://127.0.0.1:5000",
+  baseURL: "https://smart-cloud-pos-api.onrender.com",
 });
 
 API.interceptors.request.use(
@@ -100,23 +100,23 @@ function Dashboard() {
 
   const statCards = useMemo(
     () => [
-      { title: "Total Sales", value: `৳ ${Number(stats.total_sales).toFixed(2)}`, tone: "success", icon: "💰" },
-      { title: "Today's Sales", value: `৳ ${Number(stats.today_sales).toFixed(2)}`, tone: "primary", icon: "📅" },
-      { title: "Today's Profit", value: `৳ ${Number(stats.today_profit).toFixed(2)}`, tone: "sky", icon: "📈" },
-      { title: "Net Profit", value: `৳ ${Number(stats.net_profit).toFixed(2)}`, tone: "success", icon: "💵" },
+      { title: "Total Sales", value: `à§³ ${Number(stats.total_sales).toFixed(2)}`, tone: "success", icon: "ðŸ’°" },
+      { title: "Today's Sales", value: `à§³ ${Number(stats.today_sales).toFixed(2)}`, tone: "primary", icon: "ðŸ“…" },
+      { title: "Today's Profit", value: `à§³ ${Number(stats.today_profit).toFixed(2)}`, tone: "sky", icon: "ðŸ“ˆ" },
+      { title: "Net Profit", value: `à§³ ${Number(stats.net_profit).toFixed(2)}`, tone: "success", icon: "ðŸ’µ" },
       {
         title: "Today's Damaged",
-        value: `৳ ${Number(stats.today_damaged_loss).toFixed(2)} (${todayDamagedQty} pcs)`,
+        value: `à§³ ${Number(stats.today_damaged_loss).toFixed(2)} (${todayDamagedQty} pcs)`,
         tone: "danger",
-        icon: "🗑️",
+        icon: "ðŸ—‘ï¸",
       },
-      { title: "Inventory Value", value: `৳ ${Number(stats.inventory_value).toFixed(2)}`, tone: "orange", icon: "📦" },
-      { title: "Products", value: stats.total_products, tone: "violet", icon: "📦" },
-      { title: "Orders", value: stats.total_orders, tone: "sky", icon: "🧾" },
-      { title: "Stores", value: stats.total_stores, tone: "primary", icon: "🏪" },
-      { title: "Users", value: stats.total_users, tone: "warning", icon: "👥" },
-      { title: "Low Stock", value: stats.low_stock, tone: "warning", icon: "⚠️" },
-      { title: "Out of Stock", value: stats.out_stock, tone: "danger", icon: "❌" },
+      { title: "Inventory Value", value: `à§³ ${Number(stats.inventory_value).toFixed(2)}`, tone: "orange", icon: "ðŸ“¦" },
+      { title: "Products", value: stats.total_products, tone: "violet", icon: "ðŸ“¦" },
+      { title: "Orders", value: stats.total_orders, tone: "sky", icon: "ðŸ§¾" },
+      { title: "Stores", value: stats.total_stores, tone: "primary", icon: "ðŸª" },
+      { title: "Users", value: stats.total_users, tone: "warning", icon: "ðŸ‘¥" },
+      { title: "Low Stock", value: stats.low_stock, tone: "warning", icon: "âš ï¸" },
+      { title: "Out of Stock", value: stats.out_stock, tone: "danger", icon: "âŒ" },
     ],
     [stats, todayDamagedQty]
   );
@@ -187,7 +187,7 @@ function Dashboard() {
           title="This Month"
           subtitle={
             monthSummary
-              ? `${new Date(monthSummary.year, monthSummary.month - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })} — full printable report available on the Reports page`
+              ? `${new Date(monthSummary.year, monthSummary.month - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })} â€” full printable report available on the Reports page`
               : "Loading..."
           }
         >
@@ -195,12 +195,12 @@ function Dashboard() {
             <div className="month-summary-grid">
               <div className="month-summary-item income">
                 <span>Income (Sales)</span>
-                <strong>৳ {Number(monthSummary.total_sales).toFixed(2)}</strong>
+                <strong>à§³ {Number(monthSummary.total_sales).toFixed(2)}</strong>
                 <small>{monthSummary.total_orders} orders</small>
               </div>
               <div className="month-summary-item expense">
                 <span>Expense (Damaged)</span>
-                <strong>৳ {Number(monthSummary.total_damaged_value).toFixed(2)}</strong>
+                <strong>à§³ {Number(monthSummary.total_damaged_value).toFixed(2)}</strong>
                 <small>{monthSummary.total_damaged_qty} pcs</small>
               </div>
               <div
@@ -209,7 +209,7 @@ function Dashboard() {
                 }`}
               >
                 <span>Net Amount</span>
-                <strong>৳ {Number(monthSummary.net_amount).toFixed(2)}</strong>
+                <strong>à§³ {Number(monthSummary.net_amount).toFixed(2)}</strong>
                 <small>{monthSummary.net_amount >= 0 ? "Profit" : "Loss"}</small>
               </div>
             </div>
@@ -234,7 +234,7 @@ function Dashboard() {
               storeBreakdown.map((s) => (
                 <div key={s.store_id} className="store-breakdown-card">
                   <div className="store-breakdown-top">
-                    <span className="store-breakdown-name">🏪 {s.store_name}</span>
+                    <span className="store-breakdown-name">ðŸª {s.store_name}</span>
                     <span className="store-breakdown-id">#{s.store_id}</span>
                   </div>
 
@@ -250,12 +250,12 @@ function Dashboard() {
                     <div className="store-breakdown-stat damaged">
                       <span>Damaged</span>
                       <strong>
-                        {s.damaged_count} pcs · ৳ {Number(s.damaged_value).toFixed(2)}
+                        {s.damaged_count} pcs Â· à§³ {Number(s.damaged_value).toFixed(2)}
                       </strong>
                     </div>
                     <div className="store-breakdown-stat revenue">
                       <span>Revenue</span>
-                      <strong>৳ {Number(s.total_revenue).toFixed(2)}</strong>
+                      <strong>à§³ {Number(s.total_revenue).toFixed(2)}</strong>
                     </div>
                   </div>
                 </div>
@@ -264,7 +264,7 @@ function Dashboard() {
           </div>
 
           <p className="store-breakdown-total-damaged">
-            🗑️ All Damaged Products: <strong>{totalDamagedAllStores} pcs</strong> — ৳{" "}
+            ðŸ—‘ï¸ All Damaged Products: <strong>{totalDamagedAllStores} pcs</strong> â€” à§³{" "}
             <strong>{totalDamagedValueAllStores.toFixed(2)}</strong>
           </p>
         </Section>
@@ -290,7 +290,7 @@ function Dashboard() {
                     <tr key={index}>
                       <td>{item.payment_method}</td>
                       <td className="text-right text-bold">
-                        ৳ {Number(item.amount).toFixed(2)}
+                        à§³ {Number(item.amount).toFixed(2)}
                       </td>
                     </tr>
                   ))
@@ -324,7 +324,7 @@ function Dashboard() {
                         <td>#{sale.id}</td>
                         <td>{sale.customer_phone || "Walk-in"}</td>
                         <td className="text-right text-bold">
-                          ৳ {Number(sale.payable_amount).toFixed(2)}
+                          à§³ {Number(sale.payable_amount).toFixed(2)}
                         </td>
                       </tr>
                     ))
@@ -394,7 +394,7 @@ function StatCard({ title, value, tone, icon }) {
   );
 }
 
-// হালকা, নিজস্ব SVG bar chart — কোনো external charting library লাগবে না
+// à¦¹à¦¾à¦²à¦•à¦¾, à¦¨à¦¿à¦œà¦¸à§à¦¬ SVG bar chart â€” à¦•à§‹à¦¨à§‹ external charting library à¦²à¦¾à¦—à¦¬à§‡ à¦¨à¦¾
 function TrendChart({ data }) {
   if (!data || data.length === 0) {
     return <p className="trend-empty">No trend data available.</p>;
@@ -404,8 +404,8 @@ function TrendChart({ data }) {
   const chartHeight = 180;
   const barWidth = 100 / data.length;
 
-  // "YYYY-MM-DD" স্ট্রিং সরাসরি Date()-এ দিলে সেটা UTC হিসেবে ধরে নেয়, যেটা
-  // বাংলাদেশ সময়ে ভুল দিন দেখাতে পারে। তাই ম্যানুয়ালি local date বানানো হচ্ছে।
+  // "YYYY-MM-DD" à¦¸à§à¦Ÿà§à¦°à¦¿à¦‚ à¦¸à¦°à¦¾à¦¸à¦°à¦¿ Date()-à¦ à¦¦à¦¿à¦²à§‡ à¦¸à§‡à¦Ÿà¦¾ UTC à¦¹à¦¿à¦¸à§‡à¦¬à§‡ à¦§à¦°à§‡ à¦¨à§‡à¦¯à¦¼, à¦¯à§‡à¦Ÿà¦¾
+  // à¦¬à¦¾à¦‚à¦²à¦¾à¦¦à§‡à¦¶ à¦¸à¦®à¦¯à¦¼à§‡ à¦­à§à¦² à¦¦à¦¿à¦¨ à¦¦à§‡à¦–à¦¾à¦¤à§‡ à¦ªà¦¾à¦°à§‡à¥¤ à¦¤à¦¾à¦‡ à¦®à§à¦¯à¦¾à¦¨à§à¦¯à¦¼à¦¾à¦²à¦¿ local date à¦¬à¦¾à¦¨à¦¾à¦¨à§‹ à¦¹à¦šà§à¦›à§‡à¥¤
   const parseLocalDate = (dateStr) => {
     const [y, m, d] = dateStr.split("-").map(Number);
     return new Date(y, m - 1, d);
@@ -457,7 +457,7 @@ function TrendChart({ data }) {
                 className="trend-bar"
               >
                 <title>
-                  {dateLabel(d.date)}: ৳ {d.total_sales.toFixed(2)} ({d.order_count} orders)
+                  {dateLabel(d.date)}: à§³ {d.total_sales.toFixed(2)} ({d.order_count} orders)
                 </title>
               </rect>
             </g>
@@ -477,7 +477,7 @@ function TrendChart({ data }) {
   );
 }
 
-// Store-wise revenue comparison — horizontal bars, sorted highest to lowest,
+// Store-wise revenue comparison â€” horizontal bars, sorted highest to lowest,
 // top performer gets a gold highlight so it's obvious at a glance.
 function StoreSalesChart({ data }) {
   if (!data || data.length === 0) {
@@ -506,7 +506,7 @@ function StoreSalesChart({ data }) {
             </div>
 
             <div className="store-chart-value">
-              ৳ {Number(s.total_revenue).toFixed(2)}
+              à§³ {Number(s.total_revenue).toFixed(2)}
             </div>
           </div>
         );

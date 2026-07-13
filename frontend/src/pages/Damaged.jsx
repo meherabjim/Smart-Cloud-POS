@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+﻿import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import "./Damaged.css";
 
@@ -19,8 +19,8 @@ function Damaged() {
       const headers = { Authorization: `Bearer ${token}` };
 
       const [productsRes, damagedRes] = await Promise.all([
-        axios.get(`http://127.0.0.1:5000/api/products?store_id=${activeStoreId}`, { headers }),
-        axios.get(`http://127.0.0.1:5000/api/damaged?store_id=${activeStoreId}`, { headers }),
+        axios.get(`https://smart-cloud-pos-api.onrender.com/api/products?store_id=${activeStoreId}`, { headers }),
+        axios.get(`https://smart-cloud-pos-api.onrender.com/api/damaged?store_id=${activeStoreId}`, { headers }),
       ]);
 
       setProducts(productsRes.data || []);
@@ -47,7 +47,7 @@ function Damaged() {
 
     try {
       await axios.post(
-        "http://127.0.0.1:5000/api/damaged",
+        "https://smart-cloud-pos-api.onrender.com/api/damaged",
         {
           product_id: productId,
           quantity,
@@ -73,7 +73,7 @@ function Damaged() {
     if (!window.confirm("Delete this damaged record?")) return;
 
     try {
-      await axios.delete(`http://127.0.0.1:5000/api/damaged/${id}`, {
+      await axios.delete(`https://smart-cloud-pos-api.onrender.com/api/damaged/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -88,7 +88,7 @@ function Damaged() {
     <div className="damaged-page">
       <div className="damaged-header">
         <div>
-          <h2>📦 Damaged / Spoiled Products</h2>
+          <h2>ðŸ“¦ Damaged / Spoiled Products</h2>
           <p>Track damaged stock for your current outlet in one place.</p>
         </div>
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import axios from "axios";
 import "./Invoice.css";
 
@@ -11,14 +11,14 @@ function Invoice({ saleId, onClose }) {
 
   const loadInvoice = async () => {
     try {
-      const res = await axios.get(`http://127.0.0.1:5000/api/sales/${saleId}`);
+      const res = await axios.get(`https://smart-cloud-pos-api.onrender.com/api/sales/${saleId}`);
       setSale(res.data);
     } catch (err) {
       alert("Invoice Load Failed");
     }
   };
 
-  const formatMoney = (amount) => `৳ ${Number(amount || 0).toFixed(2)}`;
+  const formatMoney = (amount) => `à§³ ${Number(amount || 0).toFixed(2)}`;
 
   if (!sale) {
     return (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+﻿import React, { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import "./Users.css";
 
@@ -27,7 +27,7 @@ function Users() {
       setLoading(true);
 
       const res = await axios.get(
-        `http://127.0.0.1:5000/api/users?store_id=${activeStoreId}`,
+        `https://smart-cloud-pos-api.onrender.com/api/users?store_id=${activeStoreId}`,
         config
       );
 
@@ -63,7 +63,7 @@ function Users() {
 
     try {
       const res = await axios.post(
-        "http://127.0.0.1:5000/api/users/add",
+        "https://smart-cloud-pos-api.onrender.com/api/users/add",
         payload,
         config
       );
@@ -90,7 +90,7 @@ function Users() {
     if (window.confirm("Are you sure you want to delete this staff member?")) {
       try {
         const res = await axios.delete(
-          `http://127.0.0.1:5000/api/users/${userId}`,
+          `https://smart-cloud-pos-api.onrender.com/api/users/${userId}`,
           config
         );
 
@@ -115,7 +115,7 @@ function Users() {
         <div>
           <p className="users-eyebrow">Staff Control</p>
           <h2 className="users-title">User Management</h2>
-          <p className="users-active-store">🏪 Current Store: #{activeStoreId}</p>
+          <p className="users-active-store">ðŸª Current Store: #{activeStoreId}</p>
           <p className="users-subtitle">
             Manage staff accounts, roles, and permissions.
           </p>
@@ -246,7 +246,7 @@ function Users() {
                             isProtected ? "disabled" : ""
                           }`}
                         >
-                          🗑 Delete
+                          ðŸ—‘ Delete
                         </button>
                       </td>
                     </tr>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+﻿import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import "./SalesHistory.css";
 
@@ -20,7 +20,7 @@ function SalesHistory() {
         }
 
         const res = await axios.get(
-          `http://127.0.0.1:5000/api/sales?${params.toString()}`
+          `https://smart-cloud-pos-api.onrender.com/api/sales?${params.toString()}`
         );
         setSales(res.data || []);
       } catch (err) {
@@ -46,7 +46,7 @@ function SalesHistory() {
 
   const handleView = async (id) => {
     try {
-      const res = await axios.get(`http://127.0.0.1:5000/api/sales/${id}`);
+      const res = await axios.get(`https://smart-cloud-pos-api.onrender.com/api/sales/${id}`);
       setSelectedSale(res.data.sale);
       setItems(res.data.items || []);
       setShowModal(true);
@@ -61,9 +61,9 @@ function SalesHistory() {
       <div className="sales-history-header">
         <div>
           <p className="sales-history-eyebrow">Sales Records</p>
-          <h2 className="sales-history-title">📄 Sales History</h2>
+          <h2 className="sales-history-title">ðŸ“„ Sales History</h2>
           <p className="sales-history-subtitle">
-            🏪 Current Store: #{activeStoreId}
+            ðŸª Current Store: #{activeStoreId}
           </p>
         </div>
 
@@ -126,10 +126,10 @@ function SalesHistory() {
                   <tr key={sale.id}>
                     <td className="mono">#{sale.id}</td>
                     <td>{sale.customer_phone || "-"}</td>
-                    <td className="mono">৳ {sale.total_amount}</td>
-                    <td className="mono">৳ {sale.discount}</td>
-                    <td className="mono">৳ {sale.tax}</td>
-                    <td className="mono strong">৳ {sale.payable_amount}</td>
+                    <td className="mono">à§³ {sale.total_amount}</td>
+                    <td className="mono">à§³ {sale.discount}</td>
+                    <td className="mono">à§³ {sale.tax}</td>
+                    <td className="mono strong">à§³ {sale.payable_amount}</td>
                     <td>
                       <span className="payment-badge">
                         {sale.payment_method}
@@ -145,7 +145,7 @@ function SalesHistory() {
                         onClick={() => handleView(sale.id)}
                         className="sales-history-btn small primary"
                       >
-                        👁 View
+                        ðŸ‘ View
                       </button>
                     </td>
                   </tr>
@@ -160,7 +160,7 @@ function SalesHistory() {
         <div className="sales-history-overlay">
           <div className="sales-history-modal">
             <div className="invoice-brand">
-              <h2>☁ Cloud POS</h2>
+              <h2>â˜ Cloud POS</h2>
               <p>Smart POS & Inventory System</p>
             </div>
 
@@ -195,9 +195,9 @@ function SalesHistory() {
                     <tr key={item.id}>
                       <td>{item.name}</td>
                       <td className="mono">{item.quantity}</td>
-                      <td className="mono">৳ {item.price}</td>
+                      <td className="mono">à§³ {item.price}</td>
                       <td className="mono strong">
-                        ৳ {(Number(item.price) * Number(item.quantity)).toFixed(2)}
+                        à§³ {(Number(item.price) * Number(item.quantity)).toFixed(2)}
                       </td>
                     </tr>
                   ))}
@@ -208,19 +208,19 @@ function SalesHistory() {
             <div className="invoice-summary">
               <div className="invoice-row">
                 <span>Total</span>
-                <strong>৳ {selectedSale.total_amount}</strong>
+                <strong>à§³ {selectedSale.total_amount}</strong>
               </div>
               <div className="invoice-row">
                 <span>Discount</span>
-                <strong>৳ {selectedSale.discount}</strong>
+                <strong>à§³ {selectedSale.discount}</strong>
               </div>
               <div className="invoice-row">
                 <span>Tax</span>
-                <strong>৳ {selectedSale.tax}</strong>
+                <strong>à§³ {selectedSale.tax}</strong>
               </div>
               <div className="invoice-row grand">
                 <span>Grand Total</span>
-                <strong>৳ {selectedSale.payable_amount}</strong>
+                <strong>à§³ {selectedSale.payable_amount}</strong>
               </div>
               <div className="invoice-row">
                 <span>Payment</span>
@@ -229,7 +229,7 @@ function SalesHistory() {
             </div>
 
             <div className="invoice-thanks">
-              <h4>Thank You ❤️</h4>
+              <h4>Thank You â¤ï¸</h4>
               <p>Please Visit Again</p>
             </div>
 
@@ -238,7 +238,7 @@ function SalesHistory() {
                 onClick={() => window.print()}
                 className="sales-history-btn success"
               >
-                🖨 Print Invoice
+                ðŸ–¨ Print Invoice
               </button>
               <button
                 onClick={() => setShowModal(false)}
