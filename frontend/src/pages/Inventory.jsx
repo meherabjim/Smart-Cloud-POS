@@ -79,8 +79,8 @@ function Inventory() {
     );
   };
 
-  // à¦à¦•à¦Ÿà¦¾à¦‡ request à¦ªà¦¾à¦ à¦¾à¦¯à¦¼ â€” à¦¤à¦¾à¦‡ à¦à¦•à¦¬à¦¾à¦°à§‡ à¦¯à¦¤ quantity à¦¦à§‡à¦“à¦¯à¦¼à¦¾ à¦¹à§‹à¦•, inventory_history-à¦¤à§‡
-  // à¦à¦•à¦Ÿà¦¾à¦‡ entry à¦¹à¦¬à§‡ (à¦†à¦—à§‡ +1 à¦¬à¦¾à¦°à¦¬à¦¾à¦° à¦•à§à¦²à¦¿à¦• à¦•à¦°à¦²à§‡ à¦†à¦²à¦¾à¦¦à¦¾ à¦†à¦²à¦¾à¦¦à¦¾ entry à¦¹à¦¯à¦¼à§‡ à¦¯à§‡à¦¤)à¥¤
+  // একটাই request পাঠায় — তাই একবারে যত quantity দেওয়া হোক, inventory_history-তে
+  // একটাই entry হবে (আগে +1 বারবার ক্লিক করলে আলাদা আলাদা entry হয়ে যেত)।
   const stockIn = async (id, currentStock, qty) => {
     const quantity = Number(qty);
     if (isNaN(quantity) || quantity <= 0) {
@@ -146,7 +146,7 @@ function Inventory() {
             className="inventory-history-back-btn"
             onClick={() => setShowHistory(false)}
           >
-            â† Back to Inventory
+            ← Back to Inventory
           </button>
         </div>
 
@@ -173,7 +173,7 @@ function Inventory() {
               className="inventory-history-btn"
               onClick={() => setShowHistory(true)}
             >
-              ðŸ“œ Inventory History
+              📜 Inventory History
             </button>
 
             <div className="inventory-store-badge">
@@ -252,8 +252,8 @@ function Inventory() {
                       <td data-label="Name" className="product-name-cell">
                         {p.name}
                       </td>
-                      <td data-label="Cost">à§³ {p.cost_price}</td>
-                      <td data-label="Sell">à§³ {p.selling_price}</td>
+                      <td data-label="Cost">৳ {p.cost_price}</td>
+                      <td data-label="Sell">৳ {p.selling_price}</td>
                       <td data-label="Stock">
                         <input
                           type="number"
@@ -314,4 +314,3 @@ function Inventory() {
 }
 
 export default Inventory;
-

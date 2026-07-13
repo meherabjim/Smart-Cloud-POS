@@ -115,7 +115,7 @@ function Users() {
         <div>
           <p className="users-eyebrow">Staff Control</p>
           <h2 className="users-title">User Management</h2>
-          <p className="users-active-store">ðŸª Current Store: #{activeStoreId}</p>
+          <p className="users-active-store">🏪 Current Store: #{activeStoreId}</p>
           <p className="users-subtitle">
             Manage staff accounts, roles, and permissions.
           </p>
@@ -246,7 +246,7 @@ function Users() {
                             isProtected ? "disabled" : ""
                           }`}
                         >
-                          ðŸ—‘ Delete
+                          🗑 Delete
                         </button>
                       </td>
                     </tr>
@@ -262,4 +262,3 @@ function Users() {
 }
 
 export default Users;
-

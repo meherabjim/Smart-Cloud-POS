@@ -18,7 +18,7 @@ function Invoice({ saleId, onClose }) {
     }
   };
 
-  const formatMoney = (amount) => `à§³ ${Number(amount || 0).toFixed(2)}`;
+  const formatMoney = (amount) => `৳ ${Number(amount || 0).toFixed(2)}`;
 
   if (!sale) {
     return (
@@ -140,4 +140,3 @@ function Invoice({ saleId, onClose }) {
 }
 
 export default Invoice;
-

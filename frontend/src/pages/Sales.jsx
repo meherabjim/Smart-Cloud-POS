@@ -44,7 +44,7 @@ function Sales() {
   );
   const [showHeldPanel, setShowHeldPanel] = useState(false);
 
-  // à¦«à§‹à¦¨ à¦¸à§à¦•à§à¦¯à¦¾à¦¨à¦¾à¦°à§‡à¦° à¦‡à¦¨à¦ªà§à¦Ÿ à¦§à¦°à¦¾à¦° à¦œà¦¨à§à¦¯ à¦¹à¦¿à¦¡à§‡à¦¨ à¦°à§‡à¦«à¦¾à¦°à§‡à¦¨à§à¦¸
+  // ফোন স্ক্যানারের ইনপুট ধরার জন্য হিডেন রেফারেন্স
   const hiddenInputRef = useRef(null);
 
   const loadProducts = async () => {
@@ -55,7 +55,7 @@ function Sales() {
       setAllProducts(res.data || []);
     } catch (err) {
       console.error("Error loading products:", err);
-      setMessage("âŒ Product load korte problem hocche.");
+      setMessage("❌ Product load korte problem hocche.");
     }
   };
 
@@ -72,7 +72,7 @@ function Sales() {
         .then((res) => setAllProducts(res.data || []))
         .catch((err) => {
           console.error("Error loading products:", err);
-          setMessage("âŒ Product load korte problem hocche.");
+          setMessage("❌ Product load korte problem hocche.");
         });
     };
 
@@ -85,11 +85,11 @@ function Sales() {
     };
   }, []);
 
-  // ==================== à¦«à§‹à¦¨/USB à¦¸à§à¦•à§à¦¯à¦¾à¦¨à¦¾à¦° à¦•à§à¦¯à¦¾à¦šà¦¾à¦° ====================
-  // à¦¹à¦¿à¦¡à§‡à¦¨ à¦‡à¦¨à¦ªà§à¦Ÿ à¦¸à¦¬à¦¸à¦®à¦¯à¦¼ à¦«à§‹à¦•à¦¾à¦¸à¦¡ à¦°à¦¾à¦–à¦¾ à¦¹à¦¯à¦¼ (à¦•à§‹à¦¨à§‹ à¦•à§à¦²à¦¿à¦•/à¦Ÿà§à¦¯à¦¾à¦ª à¦›à¦¾à¦¡à¦¼à¦¾à¦‡), à¦¯à¦¾à¦¤à§‡
-  // extension/network-based scanner app à¦¸à¦¬à¦¸à¦®à¦¯à¦¼ à¦¡à§‡à¦Ÿà¦¾ à¦¬à¦¸à¦¾à¦¨à§‹à¦° à¦œà¦¾à¦¯à¦¼à¦—à¦¾ à¦ªà¦¾à¦¯à¦¼à¥¤
-  // à¦‡à¦‰à¦œà¦¾à¦° real field (search/qty/tax/phone/amount/payment) à¦¬à§à¦¯à¦¬à¦¹à¦¾à¦° à¦•à¦°à¦²à§‡
-  // à¦¸à§‡à¦–à¦¾à¦¨à§‡à¦‡ focus à¦¥à¦¾à¦•à¦¤à§‡ à¦¦à§‡à¦“à¦¯à¦¼à¦¾ à¦¹à¦¯à¦¼, à¦¬à¦¾à¦•à¦¿ à¦¸à¦¬ à¦¸à¦®à¦¯à¦¼ hidden input-à¦à¦‡ à¦«à§‹à¦•à¦¾à¦¸ à¦«à¦¿à¦°à§‡ à¦†à¦¸à§‡à¥¤
+  // ==================== ফোন/USB স্ক্যানার ক্যাচার ====================
+  // হিডেন ইনপুট সবসময় ফোকাসড রাখা হয় (কোনো ক্লিক/ট্যাপ ছাড়াই), যাতে
+  // extension/network-based scanner app সবসময় ডেটা বসানোর জায়গা পায়।
+  // ইউজার real field (search/qty/tax/phone/amount/payment) ব্যবহার করলে
+  // সেখানেই focus থাকতে দেওয়া হয়, বাকি সব সময় hidden input-এই ফোকাস ফিরে আসে।
   useEffect(() => {
     const focusHidden = () => {
       if (hiddenInputRef.current) {
@@ -106,7 +106,7 @@ function Sales() {
 
     const refocusIfIdle = () => {
       if (document.activeElement === hiddenInputRef.current) return;
-      if (isRealFieldFocused()) return; // à¦‡à¦‰à¦œà¦¾à¦° à¦‡à¦šà§à¦›à¦¾à¦•à§ƒà¦¤à¦­à¦¾à¦¬à§‡ à¦…à¦¨à§à¦¯ field à¦¬à§à¦¯à¦¬à¦¹à¦¾à¦° à¦•à¦°à¦›à§‡
+      if (isRealFieldFocused()) return; // ইউজার ইচ্ছাকৃতভাবে অন্য field ব্যবহার করছে
       focusHidden();
     };
 
@@ -142,7 +142,7 @@ function Sales() {
     );
 
     if (!matchedProduct) {
-      setMessage(`âŒ "${scannedCode}" barcode-er kono product paoa jayni ei store-e!`);
+      setMessage(`❌ "${scannedCode}" barcode-er kono product paoa jayni ei store-e!`);
       return;
     }
 
@@ -151,7 +151,7 @@ function Sales() {
       Number(matchedProduct.store_id) !== Number(activeStoreId)
     ) {
       setMessage(
-        `âŒ Ei barcode Store #${matchedProduct.store_id}-er product, current store #${activeStoreId} noy!`
+        `❌ Ei barcode Store #${matchedProduct.store_id}-er product, current store #${activeStoreId} noy!`
       );
       return;
     }
@@ -241,11 +241,11 @@ function Sales() {
     }
 
     if (filteredSuggestions.length > 1) {
-      setMessage("à¦à¦•à¦¾à¦§à¦¿à¦• product à¦ªà¦¾à¦“à¦¯à¦¼à¦¾ à¦—à§‡à¦›à§‡ â€” à¦¨à¦¿à¦š à¦¥à§‡à¦•à§‡ select à¦•à¦°à§à¦¨à¥¤");
+      setMessage("একাধিক product পাওয়া গেছে — নিচ থেকে select করুন।");
       return;
     }
 
-    setMessage("âŒ à¦ªà§à¦°à§‹à¦¡à¦¾à¦•à§à¦Ÿ à¦ªà¦¾à¦“à¦¯à¦¼à¦¾ à¦¯à¦¾à¦¯à¦¼à¦¨à¦¿!");
+    setMessage("❌ প্রোডাক্ট পাওয়া যায়নি!");
     setSearchInput("");
   };
 
@@ -315,7 +315,7 @@ function Sales() {
 
       loadProducts();
     } catch (err) {
-      alert("âŒ à¦šà§‡à¦•à¦†à¦‰à¦Ÿ à¦¬à§à¦¯à¦°à§à¦¥ à¦¹à¦¯à¦¼à§‡à¦›à§‡: " + (err.response?.data?.message || err.message));
+      alert("❌ চেকআউট ব্যর্থ হয়েছে: " + (err.response?.data?.message || err.message));
     }
   };
 
@@ -343,7 +343,7 @@ function Sales() {
     setSearchInput("");
     setMessage("");
 
-    alert("âœ… Sale held! Pore abar resume korte parbe.");
+    alert("✅ Sale held! Pore abar resume korte parbe.");
   };
 
   const handleResumeSale = (heldId) => {
@@ -385,7 +385,7 @@ function Sales() {
             className="sales-history-back-btn"
             onClick={() => setShowHistory(false)}
           >
-            â† Back to POS {cart.length > 0 ? `(${cart.length} item cart safe)` : ""}
+            ← Back to POS {cart.length > 0 ? `(${cart.length} item cart safe)` : ""}
           </button>
         </div>
 
@@ -413,12 +413,12 @@ function Sales() {
       <div className="sales-header">
         <div>
           <p className="sales-eyebrow">Point of Sale</p>
-          <h2 className="sales-title">ðŸ§¾ POS / Sales</h2>
+          <h2 className="sales-title">🧾 POS / Sales</h2>
           <p className="sales-subtitle">
-            ðŸª Store #{activeStoreId} â€¢ Billing Terminal
+            🏪 Store #{activeStoreId} • Billing Terminal
           </p>
           <small style={{ color: "#22c55e", fontWeight: "bold", display: "block", marginTop: "4px" }}>
-            ðŸŸ¢ Phone Scanner Mode Active. (Just scan barcodes anytime)
+            🟢 Phone Scanner Mode Active. (Just scan barcodes anytime)
           </small>
         </div>
 
@@ -427,13 +427,13 @@ function Sales() {
           className="sales-camera-btn"
           onClick={() => setShowHistory(true)}
         >
-          ðŸ“„ Sales History
+          📄 Sales History
         </button>
       </div>
 
       <div className="sales-search-card">
         <form onSubmit={handleSearchSubmit} className="sales-search-form">
-          <span className="sales-search-icon">ðŸ”</span>
+          <span className="sales-search-icon">🔍</span>
           <input
             type="text"
             placeholder="Scan barcode or search by product name..."
@@ -449,7 +449,7 @@ function Sales() {
             className="sales-camera-btn"
             onClick={() => setShowScanner(true)}
           >
-            ðŸ“· Camera Scan
+            📷 Camera Scan
           </button>
         </form>
 
@@ -467,7 +467,7 @@ function Sales() {
                 <div className="sales-suggestion-top">
                   <span className="sales-suggestion-name">{product.name}</span>
                   <span className="sales-suggestion-price">
-                    à§³{Number(product.selling_price).toFixed(2)}
+                    ৳{Number(product.selling_price).toFixed(2)}
                   </span>
                 </div>
                 <div className="sales-suggestion-meta">
@@ -497,7 +497,7 @@ function Sales() {
                   {cart.length === 0 ? (
                     <tr>
                       <td colSpan="5" className="sales-empty">
-                        <div className="sales-empty-icon">ðŸ›’</div>
+                        <div className="sales-empty-icon">🛒</div>
                         Cart is empty. Scan barcode or type product name.
                       </td>
                     </tr>
@@ -512,17 +512,17 @@ function Sales() {
                           {item.discount_percent > 0 ? (
                             <div className="sales-price-discounted">
                               <span className="sales-price-original">
-                                à§³{Number(item.original_price).toFixed(2)}
+                                ৳{Number(item.original_price).toFixed(2)}
                               </span>
                               <span className="sales-price-final">
-                                à§³{item.selling_price.toFixed(2)}
+                                ৳{item.selling_price.toFixed(2)}
                               </span>
                               <span className="sales-discount-badge">
                                 {item.discount_percent}% off
                               </span>
                             </div>
                           ) : (
-                            <span>à§³{item.selling_price.toFixed(2)}</span>
+                            <span>৳{item.selling_price.toFixed(2)}</span>
                           )}
                         </td>
                         <td>
@@ -537,14 +537,14 @@ function Sales() {
                           />
                         </td>
                         <td className="sales-item-total">
-                          à§³{(item.selling_price * item.quantity).toFixed(2)}
+                          ৳{(item.selling_price * item.quantity).toFixed(2)}
                         </td>
                         <td>
                           <button
                             onClick={() => handleRemoveItem(item.id)}
                             className="sales-icon-btn danger"
                           >
-                            ðŸ—‘ï¸
+                            🗑️
                           </button>
                         </td>
                       </tr>
@@ -557,7 +557,7 @@ function Sales() {
 
           <div className="sales-actions">
             <button onClick={() => setCart([])} className="sales-btn danger">
-              ðŸ—‘ Clear Cart
+              🗑 Clear Cart
             </button>
 
             <button
@@ -565,14 +565,14 @@ function Sales() {
               disabled={cart.length === 0}
               className="sales-btn warning"
             >
-              â¸ Hold Sale
+              ⏸ Hold Sale
             </button>
 
             <button
               onClick={() => setShowHeldPanel(true)}
               className="sales-btn purple"
             >
-              ðŸ“‹ Held Sales
+              📋 Held Sales
               {heldSales.length > 0 && (
                 <span className="sales-badge-count">{heldSales.length}</span>
               )}
@@ -590,15 +590,15 @@ function Sales() {
         </div>
 
         <div className="sales-summary-card">
-          <h3 className="sales-summary-title">ðŸ’³ Billing Summary</h3>
+          <h3 className="sales-summary-title">💳 Billing Summary</h3>
 
-          <SummaryRow label="Subtotal" value={`à§³${subtotal.toFixed(2)}`} />
+          <SummaryRow label="Subtotal" value={`৳${subtotal.toFixed(2)}`} />
           <SummaryRow
             label="Discount"
-            value={`-à§³${discountAmount.toFixed(2)}`}
+            value={`-৳${discountAmount.toFixed(2)}`}
             color="var(--sales-danger)"
           />
-          <SummaryRow label="Tax" value={`à§³${taxAmount.toFixed(2)}`} />
+          <SummaryRow label="Tax" value={`৳${taxAmount.toFixed(2)}`} />
 
           <div className="sales-field">
             <label>Tax %</label>
@@ -614,7 +614,7 @@ function Sales() {
 
           <div className="sales-total-box">
             <span>Total Payable</span>
-            <strong>à§³{totalPayable.toFixed(2)}</strong>
+            <strong>৳{totalPayable.toFixed(2)}</strong>
           </div>
 
           <div className="sales-field">
@@ -635,9 +635,9 @@ function Sales() {
               onChange={(e) => setPaymentMethod(e.target.value)}
               className="sales-input"
             >
-              <option value="Cash">ðŸ’µ Cash</option>
-              <option value="Card">ðŸ’³ Card</option>
-              <option value="Bkash">ðŸ“± bKash / Wallet</option>
+              <option value="Cash">💵 Cash</option>
+              <option value="Card">💳 Card</option>
+              <option value="Bkash">📱 bKash / Wallet</option>
             </select>
           </div>
 
@@ -654,7 +654,7 @@ function Sales() {
 
           <div className={`sales-change ${changeAmount >= 0 ? "ok" : "due"}`}>
             <span>Change / Due</span>
-            <strong>à§³{changeAmount.toFixed(2)}</strong>
+            <strong>৳{changeAmount.toFixed(2)}</strong>
           </div>
 
           <button
@@ -662,7 +662,7 @@ function Sales() {
             disabled={cart.length === 0}
             className="sales-complete-btn"
           >
-            âœ” Complete Sale
+            ✔ Complete Sale
           </button>
         </div>
       </div>
@@ -670,10 +670,10 @@ function Sales() {
       {showHeldPanel && (
         <div className="sales-overlay">
           <div className="sales-modal">
-            <h3 className="sales-modal-title">ðŸ“‹ Held Sales</h3>
+            <h3 className="sales-modal-title">📋 Held Sales</h3>
 
             {heldSales.length === 0 ? (
-              <p className="sales-modal-empty">Kono sale hold-e naià¥¤</p>
+              <p className="sales-modal-empty">Kono sale hold-e nai।</p>
             ) : (
               heldSales.map((h) => {
                 const total = h.cart.reduce(
@@ -688,20 +688,20 @@ function Sales() {
                       <span>{h.held_at}</span>
                     </div>
                     <p className="sales-held-text">
-                      {h.cart.length} item(s) â€” à§³{total.toFixed(2)}
+                      {h.cart.length} item(s) — ৳{total.toFixed(2)}
                     </p>
                     <div className="sales-held-actions">
                       <button
                         onClick={() => handleResumeSale(h.id)}
                         className="sales-btn success small"
                       >
-                        â–¶ Resume
+                        ▶ Resume
                       </button>
                       <button
                         onClick={() => handleDeleteHeldSale(h.id)}
                         className="sales-btn danger small"
                       >
-                        ðŸ—‘ï¸ Delete
+                        🗑️ Delete
                       </button>
                     </div>
                   </div>
@@ -749,4 +749,3 @@ function SummaryRow({ label, value, color }) {
 }
 
 export default Sales;
-

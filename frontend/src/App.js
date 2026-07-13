@@ -49,61 +49,61 @@ function App() {
       {
         key: "dashboard",
         label: "Dashboard",
-        icon: "ðŸ“Š",
+        icon: "📊",
         roles: ["Admin"],
       },
       {
         key: "products",
         label: "Products",
-        icon: "ðŸ“¦",
+        icon: "📦",
         roles: ["Admin", "Manager", "Store Keeper"],
       },
       {
         key: "inventory",
         label: "Inventory",
-        icon: "ðŸ”„",
+        icon: "🔄",
         roles: ["Admin", "Manager", "Store Keeper"],
       },
       {
         key: "sales",
         label: "POS / Sales",
-        icon: "ðŸ›’",
+        icon: "🛒",
         roles: ["Admin", "Cashier"],
       },
       {
         key: "reports",
         label: "Reports",
-        icon: "ðŸ“ˆ",
+        icon: "📈",
         roles: ["Admin", "Manager"],
       },
       {
         key: "damaged",
         label: "Damaged / Spoiled",
-        icon: "ðŸ—‘ï¸",
+        icon: "🗑️",
         roles: ["Admin", "Manager", "Store Keeper"],
       },
       {
         key: "stores",
         label: "Stores",
-        icon: "ðŸª",
+        icon: "🏪",
         roles: ["Admin"],
       },
       {
         key: "users",
         label: "Users",
-        icon: "ðŸ‘¥",
+        icon: "👥",
         roles: ["Admin"],
       },
       {
         key: "settings",
         label: "Settings",
-        icon: "âš™ï¸",
+        icon: "⚙️",
         roles: ["Admin"],
       },
       {
         key: "account",
         label: "My Account",
-        icon: "ðŸ”‘",
+        icon: "🔑",
         roles: ["Admin", "Manager", "Cashier", "Store Keeper"],
       },
     ],
@@ -326,7 +326,7 @@ function App() {
       <div className="login-shell">
         <div className="login-card">
           <section className="login-hero">
-            <div className="hero-badge">â˜ Cloud POS</div>
+            <div className="hero-badge">☁ Cloud POS</div>
             <h1>Retail management that feels fast, clean and reliable</h1>
             <p>
               Track sales, inventory, stores, reports and users from one
@@ -335,7 +335,7 @@ function App() {
 
             <div className="hero-points">
               <div className="hero-point">
-                <span>âš¡</span>
+                <span>⚡</span>
                 <div>
                   <strong>Fast billing</strong>
                   <small>Quick POS workflow for daily sales operations.</small>
@@ -343,7 +343,7 @@ function App() {
               </div>
 
               <div className="hero-point">
-                <span>ðŸ“¦</span>
+                <span>📦</span>
                 <div>
                   <strong>Stock control</strong>
                   <small>Monitor products and inventory movement easily.</small>
@@ -351,7 +351,7 @@ function App() {
               </div>
 
               <div className="hero-point">
-                <span>ðŸ“Š</span>
+                <span>📊</span>
                 <div>
                   <strong>Smart reports</strong>
                   <small>See business performance in a structured way.</small>
@@ -417,7 +417,7 @@ function App() {
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="sidebar-top">
           <div className="brand">
-            <div className="brand-mark">â˜</div>
+            <div className="brand-mark">☁</div>
             <div>
               <h2>Cloud POS</h2>
               <p>Retail Control Panel</p>
@@ -430,7 +430,7 @@ function App() {
               onClick={() => setSidebarOpen(false)}
               aria-label="Close sidebar"
             >
-              âœ•
+              ✕
             </button>
           )}
         </div>
@@ -457,7 +457,7 @@ function App() {
             <div>
               <strong>{user.name}</strong>
               <small>
-                {user.role} Â·{" "}
+                {user.role} ·{" "}
                 {user.role === "Admin"
                   ? "All Stores"
                   : `Store #${activeStoreId || "-"}`}
@@ -466,7 +466,7 @@ function App() {
           </div>
 
           <button className="logout-btn" onClick={logout} type="button">
-            ðŸšª Logout
+            🚪 Logout
           </button>
         </div>
       </aside>
@@ -481,7 +481,7 @@ function App() {
                 aria-label="Open sidebar"
                 type="button"
               >
-                â˜°
+                ☰
               </button>
             )}
 
@@ -495,7 +495,7 @@ function App() {
             <div className="topbar-user">
               <span className="user-dot"></span>
               <span>
-                {user.name} Â· {user.role} Â·{" "}
+                {user.name} · {user.role} ·{" "}
                 {user.role === "Admin"
                   ? "All Stores"
                   : `Store #${activeStoreId || "-"}`}
@@ -511,4 +511,3 @@ function App() {
 }
 
 export default App;
-

@@ -88,7 +88,7 @@ function Damaged() {
     <div className="damaged-page">
       <div className="damaged-header">
         <div>
-          <h2>ðŸ“¦ Damaged / Spoiled Products</h2>
+          <h2>📦 Damaged / Spoiled Products</h2>
           <p>Track damaged stock for your current outlet in one place.</p>
         </div>
 
@@ -192,4 +192,3 @@ function Damaged() {
 }
 
 export default Damaged;
-

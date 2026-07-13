@@ -176,7 +176,7 @@ function Products() {
   // per requested quantity using the product's REAL barcode value, then
   // triggers the browser print dialog. Because the exact same barcode value
   // is encoded, scanning the printed label on the Sales/POS page will match
-  // this product automatically â€” no changes needed on the Sales page.
+  // this product automatically — no changes needed on the Sales page.
   const handlePrintBarcode = (product, qty) => {
     const quantity = Math.max(1, Number(qty) || 1);
     const printWindow = window.open("", "_blank", "width=800,height=700");
@@ -200,7 +200,7 @@ function Products() {
           <canvas class="barcode" data-barcode="${product.barcode}"></canvas>
           <div class="barcode-price">Tk ${product.selling_price}</div>
           ${discountLineHtml}
-          <button class="download-btn" data-index="${i}">â¬‡ Download PNG</button>
+          <button class="download-btn" data-index="${i}">⬇ Download PNG</button>
         </div>
       `;
     }
@@ -262,7 +262,7 @@ function Products() {
         </head>
         <body>
           <div class="toolbar">
-            <button onclick="window.print()">ðŸ–¨ Print All</button>
+            <button onclick="window.print()">🖨 Print All</button>
           </div>
           <div class="barcode-grid">${barcodesHtml}</div>
           <script>
@@ -452,7 +452,7 @@ function Products() {
                         {p.name}
                       </td>
                       <td data-label="Category">{p.category}</td>
-                      <td data-label="Cost">à§³ {p.cost_price}</td>
+                      <td data-label="Cost">৳ {p.cost_price}</td>
 
                       <td data-label="Price">
                         <div className="inline-edit-box">
@@ -478,7 +478,7 @@ function Products() {
                             {Number(p.discount_percent)}% off
                           </span>
                         ) : (
-                          <span className="discount-none">â€”</span>
+                          <span className="discount-none">—</span>
                         )}
                       </td>
 
@@ -507,14 +507,14 @@ function Products() {
                               className="mini-btn delete"
                               onClick={() => handleDelete(p.id)}
                             >
-                              ðŸ—‘ Delete
+                              🗑 Delete
                             </button>
 
                             <button
                               className="mini-btn print"
                               onClick={() => handlePrintBarcode(p, p.printQty)}
                             >
-                              ðŸ–¨ Print
+                              🖨 Print
                             </button>
                           </div>
 
@@ -545,4 +545,3 @@ function Products() {
 }
 
 export default Products;
-

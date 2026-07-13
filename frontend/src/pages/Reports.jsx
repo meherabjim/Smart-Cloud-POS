@@ -108,21 +108,21 @@ function Reports() {
     return [
       {
         title: "Cash",
-        icon: "ðŸ’µ",
+        icon: "💵",
         value: reportData.cash_sales,
         share: getShare(reportData.cash_sales),
         tone: "cash",
       },
       {
         title: "bKash / Nagad",
-        icon: "ðŸ“±",
+        icon: "📱",
         value: reportData.bkash_sales,
         share: getShare(reportData.bkash_sales),
         tone: "mobile",
       },
       {
         title: "Card",
-        icon: "ðŸ’³",
+        icon: "💳",
         value: reportData.card_sales,
         share: getShare(reportData.card_sales),
         tone: "card",
@@ -155,7 +155,7 @@ function Reports() {
     return (
       <div className="reports-page">
         <div className="reports-state-card error">
-          <div className="state-icon">âš ï¸</div>
+          <div className="state-icon">⚠️</div>
           <h3>Report load failed</h3>
           <p>{errorMessage}</p>
           <button className="reports-btn danger" onClick={fetchReport}>
@@ -186,7 +186,7 @@ function Reports() {
         <div className="reports-hero no-print">
           <div className="reports-hero-main">
             <p className="hero-label">Total Revenue</p>
-            <h2 className="hero-amount">à§³ {formatMoney(reportData.total_sales)}</h2>
+            <h2 className="hero-amount">৳ {formatMoney(reportData.total_sales)}</h2>
             <p className="hero-subtext">
               Completed Orders <strong>{reportData.total_orders}</strong>
             </p>
@@ -199,7 +199,7 @@ function Reports() {
           <div className="mini-stat-card">
             <span className="mini-stat-label">Average Order Value</span>
             <h3>
-              à§³{" "}
+              ৳{" "}
               {formatMoney(
                 reportData.total_orders > 0
                   ? reportData.total_sales / reportData.total_orders
@@ -232,7 +232,7 @@ function Reports() {
               </div>
 
               <p className="payment-title">{item.title}</p>
-              <h3 className="payment-amount">à§³ {formatMoney(item.value)}</h3>
+              <h3 className="payment-amount">৳ {formatMoney(item.value)}</h3>
             </div>
           ))}
         </div>
@@ -243,7 +243,7 @@ function Reports() {
             <div>
               <h2 className="reports-section-title">Monthly Income & Expense</h2>
               <p className="reports-section-subtitle">
-                Sales as income, damaged stock as expense â€” printable summary.
+                Sales as income, damaged stock as expense — printable summary.
               </p>
             </div>
 
@@ -277,7 +277,7 @@ function Reports() {
                 onClick={handlePrintMonthly}
                 disabled={monthlyLoading || !monthly}
               >
-                ðŸ–¨ Print Report
+                🖨 Print Report
               </button>
             </div>
           </div>
@@ -289,23 +289,23 @@ function Reports() {
           ) : monthly ? (
             <div className="monthly-print-area">
               <div className="monthly-print-header">
-                <h2>â˜ Cloud POS</h2>
+                <h2>☁ Cloud POS</h2>
                 <p>Monthly Income &amp; Expense Statement</p>
                 <p className="monthly-print-period">
-                  {MONTH_NAMES[monthly.month - 1]} {monthly.year} â€” Store #{activeStoreId}
+                  {MONTH_NAMES[monthly.month - 1]} {monthly.year} — Store #{activeStoreId}
                 </p>
               </div>
 
               <div className="monthly-summary-grid">
                 <div className="monthly-summary-item income">
                   <span>Income (Sales)</span>
-                  <strong>à§³ {formatMoney(monthly.total_sales)}</strong>
+                  <strong>৳ {formatMoney(monthly.total_sales)}</strong>
                   <small>{monthly.total_orders} orders</small>
                 </div>
 
                 <div className="monthly-summary-item expense">
                   <span>Expense (Damaged Stock)</span>
-                  <strong>à§³ {formatMoney(monthly.total_damaged_value)}</strong>
+                  <strong>৳ {formatMoney(monthly.total_damaged_value)}</strong>
                   <small>{monthly.total_damaged_qty} pcs damaged</small>
                 </div>
 
@@ -315,7 +315,7 @@ function Reports() {
                   }`}
                 >
                   <span>Net Amount</span>
-                  <strong>à§³ {formatMoney(monthly.net_amount)}</strong>
+                  <strong>৳ {formatMoney(monthly.net_amount)}</strong>
                   <small>{monthly.net_amount >= 0 ? "Profit" : "Loss"}</small>
                 </div>
               </div>
@@ -338,7 +338,7 @@ function Reports() {
                     monthly.payment_summary.map((p, idx) => (
                       <tr key={idx}>
                         <td>{p.payment_method}</td>
-                        <td className="text-right">à§³ {formatMoney(p.amount)}</td>
+                        <td className="text-right">৳ {formatMoney(p.amount)}</td>
                       </tr>
                     ))
                   )}
@@ -356,7 +356,7 @@ function Reports() {
   );
 }
 
-// à¦ªà§‡à¦®à§‡à¦¨à§à¦Ÿ à¦®à§‡à¦¥à¦¡ à¦…à¦¨à§à¦¯à¦¾à¦¯à¦¼à§€ à¦—à§‹à¦² (donut) chart â€” à¦•à§‹à¦¨à§‹ external library à¦›à¦¾à¦¡à¦¼à¦¾à¦‡, à¦¨à¦¿à¦œà¦¸à§à¦¬ SVG à¦¦à¦¿à¦¯à¦¼à§‡
+// পেমেন্ট মেথড অনুযায়ী গোল (donut) chart — কোনো external library ছাড়াই, নিজস্ব SVG দিয়ে
 function PaymentDonutChart({ cards, total }) {
   const size = 160;
   const strokeWidth = 22;
@@ -414,7 +414,7 @@ function PaymentDonutChart({ cards, total }) {
 
         <div className="payment-donut-center">
           <span>Total</span>
-          <strong>à§³ {total.toFixed(0)}</strong>
+          <strong>৳ {total.toFixed(0)}</strong>
         </div>
       </div>
 
@@ -435,4 +435,3 @@ function PaymentDonutChart({ cards, total }) {
 }
 
 export default Reports;
-

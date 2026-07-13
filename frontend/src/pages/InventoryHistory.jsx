@@ -53,7 +53,7 @@ function InventoryHistory() {
   }, [history, search]);
 
   const formatDate = (iso) => {
-    if (!iso) return "â€”";
+    if (!iso) return "—";
     return new Date(iso).toLocaleString("en-GB", {
       day: "2-digit",
       month: "short",
@@ -158,7 +158,7 @@ function InventoryHistory() {
                       <td data-label="Product" className="ih-product-cell">
                         {h.product_name || "Deleted Product"}
                       </td>
-                      <td data-label="Barcode">{h.barcode || "â€”"}</td>
+                      <td data-label="Barcode">{h.barcode || "—"}</td>
                       <td data-label="Type">
                         <span className={`ih-type-badge ${h.type === "IN" ? "in" : "out"}`}>
                           {h.type === "IN" ? "Stock In" : "Stock Out"}
@@ -180,4 +180,3 @@ function InventoryHistory() {
 }
 
 export default InventoryHistory;
-

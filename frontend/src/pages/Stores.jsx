@@ -141,7 +141,7 @@ function Stores() {
       <div className="stores-topbar">
         <div>
           <p className="stores-eyebrow">Branch Control</p>
-          <h2 className="stores-title">ðŸª Store Management</h2>
+          <h2 className="stores-title">🏪 Store Management</h2>
           <p className="stores-subtitle">
             Manage your branches and switch between stores.
           </p>
@@ -197,7 +197,7 @@ function Stores() {
 
         <div className="stores-button-row">
           <button type="submit" className="stores-btn primary">
-            {editingId ? "ðŸ’¾ Update Store" : "+ Add Store"}
+            {editingId ? "💾 Update Store" : "+ Add Store"}
           </button>
 
           {editingId && (
@@ -268,7 +268,7 @@ function Stores() {
                       <td className="stores-td">
                         {active ? (
                           <span className="stores-status-chip active">
-                            âœ… Active
+                            ✅ Active
                           </span>
                         ) : (
                           <span className="stores-status-chip inactive">
@@ -293,7 +293,7 @@ function Stores() {
                             onClick={() => handleEdit(store)}
                             className="stores-action-btn edit"
                           >
-                            âœ Edit
+                            ✏ Edit
                           </button>
 
                           <button
@@ -303,7 +303,7 @@ function Stores() {
                               Number(store.id) === 1 ? "disabled" : ""
                             }`}
                           >
-                            ðŸ—‘ Delete
+                            🗑 Delete
                           </button>
                         </div>
                       </td>
@@ -320,4 +320,3 @@ function Stores() {
 }
 
 export default Stores;
-

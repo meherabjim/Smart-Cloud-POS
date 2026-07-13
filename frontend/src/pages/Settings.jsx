@@ -245,4 +245,3 @@ function Settings({ user, activeStoreId }) {
 }
 
 export default Settings;
-

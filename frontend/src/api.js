@@ -58,7 +58,7 @@ function App() {
           minHeight: "100vh",
         }}
       >
-        <h1>ðŸŽ‰ SaaS POS Dashboard</h1>
+        <h1>🎉 SaaS POS Dashboard</h1>
 
         <hr />
 
@@ -163,4 +163,3 @@ function App() {
 }
 
 export default App;
-

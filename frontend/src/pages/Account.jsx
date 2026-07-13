@@ -168,4 +168,3 @@ function Account({ user, activeStoreId }) {
 }
 
 export default Account;
-
