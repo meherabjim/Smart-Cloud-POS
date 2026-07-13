@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import axios from "axios";
 import Receipt from "../components/Receipt";
 import BarcodeScanner from "../components/BarcodeScanner";
