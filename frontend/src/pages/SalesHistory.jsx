@@ -20,7 +20,7 @@ function SalesHistory() {
         }
 
         const res = await axios.get(
-          `https://smart-cloud-pos-api.onrender.com/api/sales?${params.toString()}`
+          `https://smart-cloud-pos.onrender.com/api/sales?${params.toString()}`
         );
         setSales(res.data || []);
       } catch (err) {
@@ -46,7 +46,7 @@ function SalesHistory() {
 
   const handleView = async (id) => {
     try {
-      const res = await axios.get(`https://smart-cloud-pos-api.onrender.com/api/sales/${id}`);
+      const res = await axios.get(`https://smart-cloud-pos.onrender.com/api/sales/${id}`);
       setSelectedSale(res.data.sale);
       setItems(res.data.items || []);
       setShowModal(true);
@@ -255,3 +255,4 @@ function SalesHistory() {
 }
 
 export default SalesHistory;
+

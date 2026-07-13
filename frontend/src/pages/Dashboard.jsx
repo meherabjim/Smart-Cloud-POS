@@ -3,7 +3,7 @@ import axios from "axios";
 import "./Dashboard.css";
 
 const API = axios.create({
-  baseURL: "https://smart-cloud-pos-api.onrender.com",
+  baseURL: "https://smart-cloud-pos.onrender.com",
 });
 
 API.interceptors.request.use(
@@ -516,3 +516,4 @@ function StoreSalesChart({ data }) {
 }
 
 export default Dashboard;
+

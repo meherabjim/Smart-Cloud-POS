@@ -19,8 +19,8 @@ function Damaged() {
       const headers = { Authorization: `Bearer ${token}` };
 
       const [productsRes, damagedRes] = await Promise.all([
-        axios.get(`https://smart-cloud-pos-api.onrender.com/api/products?store_id=${activeStoreId}`, { headers }),
-        axios.get(`https://smart-cloud-pos-api.onrender.com/api/damaged?store_id=${activeStoreId}`, { headers }),
+        axios.get(`https://smart-cloud-pos.onrender.com/api/products?store_id=${activeStoreId}`, { headers }),
+        axios.get(`https://smart-cloud-pos.onrender.com/api/damaged?store_id=${activeStoreId}`, { headers }),
       ]);
 
       setProducts(productsRes.data || []);
@@ -47,7 +47,7 @@ function Damaged() {
 
     try {
       await axios.post(
-        "https://smart-cloud-pos-api.onrender.com/api/damaged",
+        "https://smart-cloud-pos.onrender.com/api/damaged",
         {
           product_id: productId,
           quantity,
@@ -73,7 +73,7 @@ function Damaged() {
     if (!window.confirm("Delete this damaged record?")) return;
 
     try {
-      await axios.delete(`https://smart-cloud-pos-api.onrender.com/api/damaged/${id}`, {
+      await axios.delete(`https://smart-cloud-pos.onrender.com/api/damaged/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -192,3 +192,4 @@ function Damaged() {
 }
 
 export default Damaged;
+

@@ -3,7 +3,7 @@ import axios from "axios";
 import "./Reports.css";
 
 const api = axios.create({
-  baseURL: "https://smart-cloud-pos-api.onrender.com/api",
+  baseURL: "https://smart-cloud-pos.onrender.com/api",
 });
 
 api.interceptors.request.use((config) => {
@@ -435,3 +435,4 @@ function PaymentDonutChart({ cards, total }) {
 }
 
 export default Reports;
+

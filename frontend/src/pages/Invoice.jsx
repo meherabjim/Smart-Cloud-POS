@@ -11,7 +11,7 @@ function Invoice({ saleId, onClose }) {
 
   const loadInvoice = async () => {
     try {
-      const res = await axios.get(`https://smart-cloud-pos-api.onrender.com/api/sales/${saleId}`);
+      const res = await axios.get(`https://smart-cloud-pos.onrender.com/api/sales/${saleId}`);
       setSale(res.data);
     } catch (err) {
       alert("Invoice Load Failed");
@@ -140,3 +140,4 @@ function Invoice({ saleId, onClose }) {
 }
 
 export default Invoice;
+

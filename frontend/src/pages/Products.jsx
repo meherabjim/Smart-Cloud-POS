@@ -3,7 +3,7 @@ import axios from "axios";
 import "./Products.css";
 
 const API = axios.create({
-  baseURL: "https://smart-cloud-pos-api.onrender.com/api/products",
+  baseURL: "https://smart-cloud-pos.onrender.com/api/products",
 });
 
 API.interceptors.request.use(
@@ -545,3 +545,4 @@ function Products() {
 }
 
 export default Products;
+

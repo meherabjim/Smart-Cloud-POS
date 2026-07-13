@@ -21,7 +21,7 @@ function App() {
 
     try {
       const res = await axios.post(
-        "https://smart-cloud-pos-api.onrender.com/api/auth/login",
+        "https://smart-cloud-pos.onrender.com/api/auth/login",
         {
           email,
           password,
@@ -163,3 +163,4 @@ function App() {
 }
 
 export default App;
+

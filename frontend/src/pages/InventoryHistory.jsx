@@ -3,7 +3,7 @@ import axios from "axios";
 import "./InventoryHistory.css";
 
 const API = axios.create({
-  baseURL: "https://smart-cloud-pos-api.onrender.com/api/inventory-history",
+  baseURL: "https://smart-cloud-pos.onrender.com/api/inventory-history",
 });
 
 API.interceptors.request.use(
@@ -180,3 +180,4 @@ function InventoryHistory() {
 }
 
 export default InventoryHistory;
+

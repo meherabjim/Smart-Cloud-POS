@@ -2,7 +2,7 @@
 import axios from "axios";
 import "./Stores.css";
 
-const API = "https://smart-cloud-pos-api.onrender.com/api";
+const API = "https://smart-cloud-pos.onrender.com/api";
 
 function Stores() {
   const token = localStorage.getItem("token");
@@ -320,3 +320,4 @@ function Stores() {
 }
 
 export default Stores;
+

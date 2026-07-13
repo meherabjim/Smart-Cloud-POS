@@ -13,7 +13,7 @@ import Damaged from "./pages/Damaged";
 import "./App.css";
 
 const API = axios.create({
-  baseURL: "https://smart-cloud-pos-api.onrender.com",
+  baseURL: "https://smart-cloud-pos.onrender.com",
 });
 
 API.interceptors.request.use(
@@ -511,3 +511,4 @@ function App() {
 }
 
 export default App;
+

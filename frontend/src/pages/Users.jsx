@@ -27,7 +27,7 @@ function Users() {
       setLoading(true);
 
       const res = await axios.get(
-        `https://smart-cloud-pos-api.onrender.com/api/users?store_id=${activeStoreId}`,
+        `https://smart-cloud-pos.onrender.com/api/users?store_id=${activeStoreId}`,
         config
       );
 
@@ -63,7 +63,7 @@ function Users() {
 
     try {
       const res = await axios.post(
-        "https://smart-cloud-pos-api.onrender.com/api/users/add",
+        "https://smart-cloud-pos.onrender.com/api/users/add",
         payload,
         config
       );
@@ -90,7 +90,7 @@ function Users() {
     if (window.confirm("Are you sure you want to delete this staff member?")) {
       try {
         const res = await axios.delete(
-          `https://smart-cloud-pos-api.onrender.com/api/users/${userId}`,
+          `https://smart-cloud-pos.onrender.com/api/users/${userId}`,
           config
         );
 
@@ -262,3 +262,4 @@ function Users() {
 }
 
 export default Users;
+
