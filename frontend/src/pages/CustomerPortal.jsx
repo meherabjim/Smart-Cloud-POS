@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   useCallback,
   useEffect,
   useMemo,
@@ -7,14 +7,14 @@ import React, {
 import axios from "axios";
 import "./CustomerPortal.css";
 
-const API_BASE_URL = "http://localhost:5000";
+const API_BASE_URL = "https://smart-cloud-pos.onrender.com";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
 });
 
 const money = (value) =>
-  `৳${Number(value || 0).toFixed(2)}`;
+  `à§³${Number(value || 0).toFixed(2)}`;
 
 function CustomerPortal({ onBack }) {
   const [token, setToken] = useState(
@@ -292,7 +292,7 @@ function CustomerPortal({ onBack }) {
               className="customer-back-btn"
               onClick={onBack}
             >
-              ← Staff login
+              â† Staff login
             </button>
 
             <div className="customer-brand-badge">
@@ -311,13 +311,13 @@ function CustomerPortal({ onBack }) {
 
             <div className="customer-rule-list">
               <div>
-                <strong>৳100</strong>
+                <strong>à§³100</strong>
                 <span>Earn 1 point</span>
               </div>
 
               <div>
                 <strong>100 points</strong>
-                <span>Get ৳80 discount</span>
+                <span>Get à§³80 discount</span>
               </div>
 
               <div>
@@ -529,7 +529,7 @@ function CustomerPortal({ onBack }) {
           <p>
             {customer.phone}
             {customer.email
-              ? ` · ${customer.email}`
+              ? ` Â· ${customer.email}`
               : ""}
           </p>
         </div>
@@ -618,7 +618,7 @@ function CustomerPortal({ onBack }) {
                   <span>Total points redeemed</span>
                   <strong>{totalRedeemed}</strong>
                   <small>
-                    100 points = ৳80
+                    100 points = à§³80
                   </small>
                 </article>
 
@@ -764,7 +764,7 @@ function CustomerPortal({ onBack }) {
               <div className="customer-store-grid">
                 {stores.map((store) => (
                   <article key={store.id}>
-                    <div>🏪</div>
+                    <div>ðŸª</div>
                     <h3>{store.name}</h3>
                     <p>
                       {store.location ||
@@ -850,7 +850,7 @@ function ProductGrid({ products, emptyText }) {
             <h3>{product.name}</h3>
 
             <p>
-              🏪 {product.store_name}
+              ðŸª {product.store_name}
             </p>
 
             {product.store_location && (

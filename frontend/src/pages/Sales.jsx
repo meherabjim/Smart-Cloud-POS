@@ -12,7 +12,7 @@ import SalesHistory from "./SalesHistory";
 import "./Sales.css";
 
 const API = axios.create({
-  baseURL: "http://localhost:5000",
+  baseURL: "https://smart-cloud-pos.onrender.com",
 });
 
 API.interceptors.request.use(
