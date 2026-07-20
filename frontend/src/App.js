@@ -21,7 +21,7 @@ import CustomerPortal from "./pages/CustomerPortal";
 import "./App.css";
 
 const API = axios.create({
-  baseURL: "https://smart-cloud-pos.onrender.com",
+  baseURL: process.env.REACT_APP_API_URL || "https://smart-cloud-pos.onrender.com",
 });
 
 API.interceptors.request.use(
@@ -865,3 +865,4 @@ function App() {
 }
 
 export default App;
+
