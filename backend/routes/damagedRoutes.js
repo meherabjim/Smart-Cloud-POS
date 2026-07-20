@@ -4,25 +4,31 @@ const router = express.Router();
 const {
   getDamagedItems,
   addDamagedItem,
-  deleteDamagedItem
+  deleteDamagedItem,
 } = require("../controllers/damagedController");
 
-// ===============================
-// Get All Damaged Items
-// GET /api/damaged
-// ===============================
-router.get("/", getDamagedItems);
+const {
+  blockViewerWrites,
+} = require("../middleware/authMiddleware");
 
-// ===============================
-// Add Damaged Item
-// POST /api/damaged
-// ===============================
-router.post("/", addDamagedItem);
+// Viewer can view damaged items
+router.get(
+  "/",
+  getDamagedItems
+);
 
-// ===============================
-// Delete Damaged Item
-// DELETE /api/damaged/:id
-// ===============================
-router.delete("/:id", deleteDamagedItem);
+// Viewer cannot add damaged items
+router.post(
+  "/",
+  blockViewerWrites,
+  addDamagedItem
+);
+
+// Viewer cannot delete damaged items
+router.delete(
+  "/:id",
+  blockViewerWrites,
+  deleteDamagedItem
+);
 
 module.exports = router;

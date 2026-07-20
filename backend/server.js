@@ -12,7 +12,7 @@ const inventoryRoutes = require("./routes/inventoryRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const damagedRoutes = require("./routes/damagedRoutes");
 const settingsRoutes = require("./routes/settingsRoutes");
-
+const customerRoutes = require("./routes/customerRoutes");
 const app = express();
 
 // ========================================
@@ -1593,6 +1593,12 @@ app.get(
 // ========================================
 // Existing route files
 // ========================================
+// Customer registration, login, profile,
+// point history and staff phone lookup
+app.use(
+  "/api/customers",
+  customerRoutes
+);
 
 app.use(
   "/api/products",

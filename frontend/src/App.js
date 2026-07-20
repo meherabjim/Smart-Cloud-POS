@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   useCallback,
   useEffect,
   useMemo,
@@ -16,11 +16,12 @@ import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import Account from "./pages/Account";
 import Damaged from "./pages/Damaged";
+import CustomerPortal from "./pages/CustomerPortal";
 
 import "./App.css";
 
 const API = axios.create({
-  baseURL: "https://smart-cloud-pos.onrender.com",
+  baseURL: "http://localhost:5000",
 });
 
 API.interceptors.request.use(
@@ -40,6 +41,7 @@ function App() {
   const isBrowser = typeof window !== "undefined";
 
   const [user, setUser] = useState(null);
+  const [showCustomerPortal, setShowCustomerPortal] = useState(false);
   const [activeStoreId, setActiveStoreId] = useState(null);
   const [page, setPage] = useState("dashboard");
 
@@ -503,6 +505,14 @@ function App() {
     }
   };
 
+  if (showCustomerPortal) {
+    return (
+      <CustomerPortal
+        onBack={() => setShowCustomerPortal(false)}
+      />
+    );
+  }
+
   if (checkingAuth) {
     return (
       <div className="screen-center">
@@ -638,6 +648,55 @@ function App() {
                 className="btn-primary"
               >
                 Login
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setShowCustomerPortal(true)
+                }
+                style={{
+                  width: "100%",
+                  minHeight: "46px",
+                  marginTop: "12px",
+                  padding: "0 18px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "9px",
+                  color: "#4c1d95",
+                  background:
+                    "linear-gradient(135deg, #f5f3ff 0%, #fff1f7 100%)",
+                  border: "1px solid #c4b5fd",
+                  borderRadius: "10px",
+                  boxShadow:
+                    "0 6px 16px rgba(91, 33, 182, 0.10)",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  fontWeight: 800,
+                  letterSpacing: "0.01em",
+                  transition:
+                    "transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease",
+                }}
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.transform =
+                    "translateY(-1px)";
+                  event.currentTarget.style.boxShadow =
+                    "0 10px 22px rgba(91, 33, 182, 0.16)";
+                  event.currentTarget.style.borderColor =
+                    "#8b5cf6";
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.transform =
+                    "translateY(0)";
+                  event.currentTarget.style.boxShadow =
+                    "0 6px 16px rgba(91, 33, 182, 0.10)";
+                  event.currentTarget.style.borderColor =
+                    "#c4b5fd";
+                }}
+              >
+                <span aria-hidden="true">🎁</span>
+                <span>Customer Loyalty Login / Register</span>
               </button>
             </form>
           </section>

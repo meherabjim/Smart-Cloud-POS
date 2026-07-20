@@ -1,12 +1,21 @@
 const express = require("express");
 const router = express.Router();
 
-const { verifyToken } = require("../middleware/authMiddleware");
-const { resetDemoData } = require("../controllers/settingsController");
+const {
+  verifyToken,
+  allowRoles,
+} = require("../middleware/authMiddleware");
 
-router.post("/reset-demo", (req, res, next) => {
-  console.log(">>> RESET ROUTE HIT");
-  next();
-}, verifyToken, resetDemoData);
+const {
+  resetDemoData,
+} = require("../controllers/settingsController");
+
+// Only Admin can reset system/demo data
+router.post(
+  "/reset-demo",
+  verifyToken,
+  allowRoles("Admin"),
+  resetDemoData
+);
 
 module.exports = router;

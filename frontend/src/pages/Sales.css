@@ -1,4 +1,3 @@
-
 /* =========================================================
    CLOUD POS — SUPERSHOP SALES SCREEN
    Keeps the existing .sales-* class names
@@ -995,4 +994,90 @@ body .sales-suggestion-item:focus-visible {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
+}
+/* =========================
+   CUSTOMER LOYALTY
+   ========================= */
+
+body .sales-customer-note {
+  display: block;
+  margin-top: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+body .sales-customer-note.neutral {
+  color: var(--pos-muted);
+}
+
+body .sales-customer-note.error {
+  color: var(--pos-red-700);
+}
+
+body .sales-loyalty-card {
+  margin: 4px 0 13px;
+  padding: 12px;
+  background: #fffaf1;
+  border: 1px solid #ecd5a8;
+  border-radius: 7px;
+}
+
+body .sales-loyalty-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 11px;
+}
+
+body .sales-loyalty-head small {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--pos-muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+body .sales-loyalty-head strong {
+  display: block;
+  color: var(--pos-navy-900);
+  font-size: 13.5px;
+  font-weight: 800;
+}
+
+body .sales-points-pill {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  color: var(--pos-green-700);
+  background: var(--pos-green-100);
+  border: 1px solid #b9e4ca;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+body .sales-redeem-field {
+  margin-bottom: 10px;
+}
+
+body .sales-loyalty-mini-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 12px;
+  padding-top: 10px;
+  border-top: 1px dashed #ddc99f;
+  font-size: 11.5px;
+}
+
+body .sales-loyalty-mini-grid span {
+  color: var(--pos-muted);
+}
+
+body .sales-loyalty-mini-grid strong {
+  color: var(--pos-navy-900);
+  text-align: right;
 }

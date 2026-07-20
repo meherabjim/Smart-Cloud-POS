@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   useCallback,
   useEffect,
   useMemo,
@@ -12,7 +12,7 @@ import SalesHistory from "./SalesHistory";
 import "./Sales.css";
 
 const API = axios.create({
-  baseURL: "https://smart-cloud-pos.onrender.com",
+  baseURL: "http://localhost:5000",
 });
 
 API.interceptors.request.use(
@@ -100,6 +100,26 @@ function Sales({
     customerPhone,
     setCustomerPhone,
   ] = useState("");
+
+  const [
+    customer,
+    setCustomer,
+  ] = useState(null);
+
+  const [
+    customerLookupLoading,
+    setCustomerLookupLoading,
+  ] = useState(false);
+
+  const [
+    customerLookupMessage,
+    setCustomerLookupMessage,
+  ] = useState("");
+
+  const [
+    redeemPoints,
+    setRedeemPoints,
+  ] = useState(0);
 
   const [
     receiptData,
@@ -300,6 +320,53 @@ function Sales({
       );
     };
   }, [isViewer]);
+
+  useEffect(() => {
+    const phone = customerPhone
+      .replace(/\s+/g, "")
+      .replace(/-/g, "")
+      .trim();
+
+    setCustomer(null);
+    setRedeemPoints(0);
+
+    if (!phone) {
+      setCustomerLookupMessage("");
+      setCustomerLookupLoading(false);
+      return undefined;
+    }
+
+    if (!/^01[3-9]\d{8}$/.test(phone)) {
+      setCustomerLookupMessage(
+        "Enter a valid registered phone number."
+      );
+      setCustomerLookupLoading(false);
+      return undefined;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setCustomerLookupLoading(true);
+        setCustomerLookupMessage("");
+
+        const res = await API.get(
+          `/api/customers/by-phone/${phone}`
+        );
+
+        setCustomer(res.data.customer);
+      } catch (error) {
+        setCustomer(null);
+        setCustomerLookupMessage(
+          error.response?.data?.message ||
+            "Registered customer was not found."
+        );
+      } finally {
+        setCustomerLookupLoading(false);
+      }
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [customerPhone]);
 
   const preventViewerAction = () => {
     if (!isViewer) {
@@ -614,10 +681,16 @@ function Sales({
     (subtotal - discountAmount) *
     (taxPercent / 100);
 
-  const totalPayable =
+  const pointDiscount =
+    (Number(redeemPoints) / 100) * 80;
+
+  const totalPayable = Math.max(
+    0,
     subtotal -
-    discountAmount +
-    taxAmount;
+      discountAmount +
+      taxAmount -
+      pointDiscount
+  );
 
   const paidAmount =
     amountReceived === ""
@@ -627,6 +700,24 @@ function Sales({
   const changeAmount =
     paidAmount - totalPayable;
 
+  const maximumRedeemablePoints = customer
+    ? Math.min(
+        Math.floor(
+          Number(customer.points_balance || 0) / 100
+        ) * 100,
+        Math.floor(
+          Math.max(
+            0,
+            subtotal - discountAmount + taxAmount
+          ) / 80
+        ) * 100
+      )
+    : 0;
+
+  const estimatedEarnedPoints = Math.floor(
+    totalPayable / 100
+  );
+
   const handleCompleteSale =
     async () => {
       if (preventViewerAction()) {
@@ -634,6 +725,25 @@ function Sales({
       }
 
       if (cart.length === 0) {
+        return;
+      }
+
+      if (!customerPhone.trim()) {
+        alert("Customer phone number is required.");
+        return;
+      }
+
+      if (!customer) {
+        alert(
+          "Please enter a valid registered customer phone number."
+        );
+        return;
+      }
+
+      if (Number(redeemPoints) > maximumRedeemablePoints) {
+        alert(
+          `Maximum redeemable points for this bill: ${maximumRedeemablePoints}`
+        );
         return;
       }
 
@@ -653,6 +763,8 @@ function Sales({
               totalPayable,
             payment_method:
               paymentMethod,
+            redeem_points:
+              Number(redeemPoints) || 0,
           }
         );
 
@@ -666,6 +778,10 @@ function Sales({
             paymentMethod,
           customer_phone:
             customerPhone,
+          customer_name:
+            res.data.customer?.name ||
+            customer?.name ||
+            "",
           items: cart,
           subtotal,
           discount:
@@ -673,11 +789,24 @@ function Sales({
           discountPercent,
           tax: taxAmount,
           taxPercent,
-          total: totalPayable,
+          points_redeemed:
+            res.data.loyalty?.redeemed_points || 0,
+          points_discount:
+            res.data.loyalty?.redeemed_value || 0,
+          points_earned:
+            res.data.loyalty?.earned_points || 0,
+          previous_points:
+            res.data.loyalty?.previous_points || 0,
+          remaining_points:
+            res.data.loyalty?.remaining_points || 0,
+          total:
+            Number(res.data.payable_amount) ||
+            totalPayable,
           received: paidAmount,
           change:
             paidAmount -
-            totalPayable,
+            (Number(res.data.payable_amount) ||
+              totalPayable),
         });
 
         setShowReceipt(true);
@@ -686,6 +815,9 @@ function Sales({
         setDiscount(0);
         setTax(0);
         setCustomerPhone("");
+        setCustomer(null);
+        setCustomerLookupMessage("");
+        setRedeemPoints(0);
         setSearchInput("");
         setMessage("");
 
@@ -716,6 +848,7 @@ function Sales({
       cart,
       discount,
       tax,
+      redeem_points: redeemPoints,
       held_at:
         new Date().toLocaleString(),
     };
@@ -738,6 +871,8 @@ function Sales({
 
     setCart([]);
     setCustomerPhone("");
+    setCustomer(null);
+    setRedeemPoints(0);
     setDiscount(0);
     setTax(0);
     setAmountReceived("");
@@ -782,6 +917,9 @@ function Sales({
     );
     setTax(
       heldSale.tax || 0
+    );
+    setRedeemPoints(
+      heldSale.redeem_points || 0
     );
 
     const updatedHeldSales =
@@ -1309,22 +1447,105 @@ function Sales({
 
           <div className="sales-field">
             <label>
-              Customer Phone
+              Customer Phone *
             </label>
 
             <input
-              type="text"
+              type="tel"
               placeholder="01XXXXXXXXX"
               value={customerPhone}
+              maxLength={11}
               onChange={(event) =>
                 setCustomerPhone(
-                  event.target.value
+                  event.target.value.replace(/\D/g, "")
                 )
               }
               className="sales-input"
               disabled={isViewer}
             />
+
+            {customerLookupLoading && (
+              <small className="sales-customer-note neutral">
+                Checking customer...
+              </small>
+            )}
+
+            {!customerLookupLoading &&
+              customerLookupMessage && (
+                <small className="sales-customer-note error">
+                  {customerLookupMessage}
+                </small>
+              )}
           </div>
+
+          {customer && (
+            <div className="sales-loyalty-card">
+              <div className="sales-loyalty-head">
+                <div>
+                  <small>Registered customer</small>
+                  <strong>{customer.name}</strong>
+                </div>
+
+                <div className="sales-points-pill">
+                  {Number(
+                    customer.points_balance || 0
+                  )} points
+                </div>
+              </div>
+
+              <div className="sales-field sales-redeem-field">
+                <label>Redeem Points</label>
+
+                <select
+                  value={redeemPoints}
+                  onChange={(event) =>
+                    setRedeemPoints(
+                      Number(event.target.value)
+                    )
+                  }
+                  className="sales-input"
+                  disabled={
+                    isViewer ||
+                    maximumRedeemablePoints < 100
+                  }
+                >
+                  <option value={0}>
+                    Do not redeem
+                  </option>
+
+                  {Array.from(
+                    {
+                      length:
+                        maximumRedeemablePoints / 100,
+                    },
+                    (_, index) =>
+                      (index + 1) * 100
+                  ).map((points) => (
+                    <option
+                      key={points}
+                      value={points}
+                    >
+                      {points} points = ৳
+                      {(points / 100) * 80}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="sales-loyalty-mini-grid">
+                <span>Point discount</span>
+                <strong>-৳{pointDiscount.toFixed(2)}</strong>
+                <span>Estimated earn</span>
+                <strong>+{estimatedEarnedPoints} points</strong>
+              </div>
+            </div>
+          )}
+
+          <SummaryRow
+            label="Point Discount"
+            value={`-৳${pointDiscount.toFixed(2)}`}
+            color="var(--sales-danger)"
+          />
 
           <div className="sales-field">
             <label>
@@ -1398,7 +1619,9 @@ function Sales({
             }
             disabled={
               isViewer ||
-              cart.length === 0
+              cart.length === 0 ||
+              !customer ||
+              customerLookupLoading
             }
             className="sales-complete-btn"
           >
