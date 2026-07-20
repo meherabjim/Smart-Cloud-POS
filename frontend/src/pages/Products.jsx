@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
+import API_BASE_URL from "../apiConfig";
 import "./Products.css";
 
 const API = axios.create({
-  baseURL: "https://smart-cloud-pos.onrender.com/api/products",
+  baseURL: `${API_BASE_URL}/api/products`,
 });
 
 API.interceptors.request.use(

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import API_BASE_URL from "../apiConfig";
 import "./Invoice.css";
 
 function Invoice({ saleId, onClose }) {
@@ -11,7 +12,7 @@ function Invoice({ saleId, onClose }) {
 
   const loadInvoice = async () => {
     try {
-      const res = await axios.get(`https://smart-cloud-pos.onrender.com/api/sales/${saleId}`);
+      const res = await axios.get(`${API_BASE_URL}/api/sales/${saleId}`);
       setSale(res.data);
     } catch (err) {
       alert("Invoice Load Failed");

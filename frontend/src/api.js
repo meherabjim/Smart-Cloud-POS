@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import API_BASE_URL from "./apiConfig";
 
 function App() {
   const [email, setEmail] = useState("");
@@ -21,7 +22,7 @@ function App() {
 
     try {
       const res = await axios.post(
-        "https://smart-cloud-pos.onrender.com/api/auth/login",
+        `${API_BASE_URL}/api/auth/login`,
         {
           email,
           password,

@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import API_BASE_URL from "../apiConfig";
 import "./Stores.css";
 
-const API = "https://smart-cloud-pos.onrender.com/api";
+const API = `${API_BASE_URL}/api`;
 
 function Stores() {
   const currentUser = useMemo(() => {

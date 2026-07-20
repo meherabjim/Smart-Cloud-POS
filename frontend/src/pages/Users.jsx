@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
+import API_BASE_URL from "../apiConfig";
 import "./Users.css";
 
 function Users() {
@@ -27,7 +28,7 @@ function Users() {
       setLoading(true);
 
       const res = await axios.get(
-        `https://smart-cloud-pos.onrender.com/api/users?store_id=${activeStoreId}`,
+        `${API_BASE_URL}/api/users?store_id=${activeStoreId}`,
         config
       );
 
@@ -63,7 +64,7 @@ function Users() {
 
     try {
       const res = await axios.post(
-        "https://smart-cloud-pos.onrender.com/api/users/add",
+        `${API_BASE_URL}/api/users/add`,
         payload,
         config
       );
@@ -90,7 +91,7 @@ function Users() {
     if (window.confirm("Are you sure you want to delete this staff member?")) {
       try {
         const res = await axios.delete(
-          `https://smart-cloud-pos.onrender.com/api/users/${userId}`,
+          `${API_BASE_URL}/api/users/${userId}`,
           config
         );
 

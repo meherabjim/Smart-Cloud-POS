@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
+import API_BASE_URL from "../apiConfig";
 import "./SalesHistory.css";
 
 function SalesHistory() {
@@ -20,7 +21,7 @@ function SalesHistory() {
         }
 
         const res = await axios.get(
-          `https://smart-cloud-pos.onrender.com/api/sales?${params.toString()}`
+          `${API_BASE_URL}/api/sales?${params.toString()}`
         );
         setSales(res.data || []);
       } catch (err) {
@@ -46,7 +47,7 @@ function SalesHistory() {
 
   const handleView = async (id) => {
     try {
-      const res = await axios.get(`https://smart-cloud-pos.onrender.com/api/sales/${id}`);
+      const res = await axios.get(`${API_BASE_URL}/api/sales/${id}`);
       setSelectedSale(res.data.sale);
       setItems(res.data.items || []);
       setShowModal(true);
