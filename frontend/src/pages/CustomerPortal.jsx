@@ -14,7 +14,7 @@ const api = axios.create({
 });
 
 const money = (value) =>
-  `à§³${Number(value || 0).toFixed(2)}`;
+  `৳${Number(value || 0).toFixed(2)}`;
 
 function CustomerPortal({ onBack }) {
   const [token, setToken] = useState(
@@ -292,7 +292,7 @@ function CustomerPortal({ onBack }) {
               className="customer-back-btn"
               onClick={onBack}
             >
-              â† Staff login
+              ← Staff login
             </button>
 
             <div className="customer-brand-badge">
@@ -311,13 +311,13 @@ function CustomerPortal({ onBack }) {
 
             <div className="customer-rule-list">
               <div>
-                <strong>à§³100</strong>
+                <strong>৳100</strong>
                 <span>Earn 1 point</span>
               </div>
 
               <div>
                 <strong>100 points</strong>
-                <span>Get à§³80 discount</span>
+                <span>Get ৳80 discount</span>
               </div>
 
               <div>
@@ -618,7 +618,7 @@ function CustomerPortal({ onBack }) {
                   <span>Total points redeemed</span>
                   <strong>{totalRedeemed}</strong>
                   <small>
-                    100 points = à§³80
+                    100 points = ৳80
                   </small>
                 </article>
 
