@@ -282,7 +282,7 @@ function CustomerPortal({ onBack }) {
       0
     );
 
-  if (!token || !customer) {
+  if (!token) {
     return (
       <div className="customer-auth-page">
         <div className="customer-auth-card">
