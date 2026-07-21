@@ -764,7 +764,7 @@ function CustomerPortal({ onBack }) {
               <div className="customer-store-grid">
                 {stores.map((store) => (
                   <article key={store.id}>
-                    <div>ðŸª</div>
+                    <div>Store:</div>
                     <h3>{store.name}</h3>
                     <p>
                       {store.location ||
@@ -850,7 +850,7 @@ function ProductGrid({ products, emptyText }) {
             <h3>{product.name}</h3>
 
             <p>
-              ðŸª {product.store_name}
+              Store: {product.store_name}
             </p>
 
             {product.store_location && (
