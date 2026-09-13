@@ -529,7 +529,7 @@ function CustomerPortal({ onBack }) {
           <p>
             {customer?.phone}
             {customer.email
-              ? ` Â· ${customer.email}`
+               ? ` · ${customer.email}`
               : ""}
           </p>
         </div>
@@ -598,7 +598,7 @@ function CustomerPortal({ onBack }) {
                   <span>Available points</span>
                   <strong>
                     {Number(
-                      customer.points_balance || 0
+                     customer?.points_balance || 0
                     )}
                   </strong>
                   <small>
