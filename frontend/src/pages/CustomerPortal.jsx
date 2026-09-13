@@ -523,13 +523,13 @@ function CustomerPortal({ onBack }) {
           </span>
 
           <h1>
-           Welcome, {customer?.name || "Customer"}
+            Welcome, {customer.name}
           </h1>
 
           <p>
-            {customer?.phone}
+            {customer.phone}
             {customer.email
-               ? ` · ${customer.email}`
+              ? ` Â· ${customer.email}`
               : ""}
           </p>
         </div>
@@ -598,7 +598,7 @@ function CustomerPortal({ onBack }) {
                   <span>Available points</span>
                   <strong>
                     {Number(
-                     customer?.points_balance || 0
+                      customer.points_balance || 0
                     )}
                   </strong>
                   <small>
