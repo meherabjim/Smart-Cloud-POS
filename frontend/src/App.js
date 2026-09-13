@@ -1,4 +1,4 @@
-﻿import React, {
+import React, {
   useCallback,
   useEffect,
   useMemo,
@@ -16,7 +16,7 @@ import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import Account from "./pages/Account";
 import Damaged from "./pages/Damaged";
-import CustomerPortal from "./pages/CustomerPortal_temp";
+import CustomerPortal from "./pages/CustomerPortal";
 
 import "./App.css";
 
