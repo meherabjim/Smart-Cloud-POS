@@ -522,16 +522,16 @@ function CustomerPortal({ onBack }) {
             Cloud POS Loyalty
           </span>
 
-          <h1>
-            Welcome, {customer.name}
-          </h1>
+         <h1>
+  Welcome, {customer?.name || "Customer"}
+</h1>
 
-          <p>
-            {customer.phone}
-            {customer.email
-              ? ` Â· ${customer.email}`
-              : ""}
-          </p>
+<p>
+  {customer?.phone || ""}
+  {customer?.email
+    ? ` · ${customer.email}`
+    : ""}
+</p>
         </div>
 
         <div className="customer-header-actions">
@@ -598,7 +598,7 @@ function CustomerPortal({ onBack }) {
                   <span>Available points</span>
                   <strong>
                     {Number(
-                      customer.points_balance || 0
+                      customer?.points_balance || 0
                     )}
                   </strong>
                   <small>
