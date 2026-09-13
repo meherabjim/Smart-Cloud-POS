@@ -523,11 +523,11 @@ function CustomerPortal({ onBack }) {
           </span>
 
           <h1>
-            Welcome, {customer.name}
+           Welcome, {customer?.name || "Customer"}
           </h1>
 
           <p>
-            {customer.phone}
+            {customer?.phone}
             {customer.email
               ? ` Â· ${customer.email}`
               : ""}
