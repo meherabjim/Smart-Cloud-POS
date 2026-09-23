@@ -1,0 +1,145 @@
+/* Attendance — Stores design language */
+.att-page {
+  min-height: 100vh;
+  padding: 28px 20px 48px;
+  background:
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.05), transparent 32%),
+    #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.att-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.att-header h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.att-header p {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 14.5px;
+}
+
+.att-datebox { display: flex; flex-direction: column; gap: 6px; }
+.att-datebox label { font-size: 13px; color: #334155; font-weight: 700; }
+.att-datebox input,
+.att-filters input,
+.att-filters select {
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 11px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.att-datebox input:focus,
+.att-filters input:focus,
+.att-filters select:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+
+.att-card {
+  padding: 22px;
+  border-radius: 18px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 20px rgba(15, 23, 42, 0.05);
+}
+
+.att-table-wrap { overflow-x: auto; }
+.att-table { width: 100%; border-collapse: collapse; min-width: 560px; }
+.att-table thead th {
+  text-align: left;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid #e2e8f0;
+}
+.att-table td {
+  padding: 14px;
+  font-size: 14px;
+  color: #0f172a;
+  border-bottom: 1px solid #eef2f7;
+  vertical-align: middle;
+}
+.att-bold { font-weight: 700; }
+.att-empty { text-align: center; color: #64748b; padding: 40px 14px; }
+
+.att-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.att-btn {
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid #e2e8f0;
+  background: #f1f5f9;
+  color: #334155;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 700;
+  transition: all 0.15s ease;
+}
+.att-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.att-btn.present.on { background: #16a34a; color: #fff; border-color: #16a34a; }
+.att-btn.late.on { background: #f59e0b; color: #fff; border-color: #f59e0b; }
+.att-btn.absent.on { background: #dc2626; color: #fff; border-color: #dc2626; }
+.att-btn.leave.on { background: #6366f1; color: #fff; border-color: #6366f1; }
+
+.att-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.att-badge.present { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+.att-badge.late { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+.att-badge.absent { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+.att-badge.leave { background: #e0e7ff; color: #3730a3; border: 1px solid #c7d2fe; }
+.att-badge.none { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+
+.att-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.att-summary-head h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 19px;
+  font-weight: 800;
+}
+.att-filters { display: flex; gap: 8px; }
+.att-late-txt { color: #b45309; font-weight: 700; }
+.att-absent-txt { color: #b91c1c; font-weight: 700; }
+
+@media (max-width: 560px) {
+  .att-page { padding: 18px 14px 36px; }
+  .att-header h2 { font-size: 23px; }
+  .att-card { padding: 16px; }
+  .att-actions { justify-content: flex-start; }
+}

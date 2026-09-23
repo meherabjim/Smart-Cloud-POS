@@ -16,6 +16,11 @@ import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import Account from "./pages/Account";
 import Damaged from "./pages/Damaged";
+import Attendance from "./pages/Attendance";
+import Expenses from "./pages/Expenses";
+import Suppliers from "./pages/Suppliers";
+import Salary from "./pages/Salary";
+import FaceCapture from "./pages/FaceCapture";
 import CustomerPortal from "./pages/CustomerPortal";
 
 import "./App.css";
@@ -50,6 +55,9 @@ function App() {
   const [message, setMessage] = useState("");
 
   const [checkingAuth, setCheckingAuth] = useState(true);
+
+  // First-login face registration
+  const [needFace, setNeedFace] = useState(false);
 
   const [isMobile, setIsMobile] = useState(
     isBrowser ? window.innerWidth <= 992 : false
@@ -116,6 +124,30 @@ function App() {
           "Store Keeper",
           "Viewer",
         ],
+      },
+      {
+        key: "attendance",
+        label: "Attendance",
+        icon: "🕒",
+        roles: ["Admin", "Manager", "Viewer"],
+      },
+      {
+        key: "salary",
+        label: "Salary",
+        icon: "💵",
+        roles: ["Admin"],
+      },
+      {
+        key: "expenses",
+        label: "Expenses",
+        icon: "🧾",
+        roles: ["Admin", "Manager", "Viewer"],
+      },
+      {
+        key: "suppliers",
+        label: "Suppliers / Due",
+        icon: "🚚",
+        roles: ["Admin", "Manager", "Viewer"],
       },
       {
         key: "stores",
@@ -293,6 +325,44 @@ function App() {
     }
   }, [activeStoreId]);
 
+  // After login, check if this user still needs to register their face.
+  // Viewer (demo) is skipped.
+  useEffect(() => {
+    if (!user || user.role === "Viewer") {
+      setNeedFace(false);
+      return;
+    }
+
+    API.get("/api/face/status")
+      .then((res) => setNeedFace(!res.data?.face_registered))
+      .catch(() => setNeedFace(false));
+  }, [user]);
+
+  // Keep the active store in sync when it is switched anywhere
+  // (Stores page fires "storeChanged"; other tabs fire "storage").
+  // This makes the header and every page reflect the new store live.
+  useEffect(() => {
+    const syncStore = (event) => {
+      const fromEvent = Number(event?.detail?.storeId);
+      const fromStorage = Number(
+        localStorage.getItem("activeStoreId")
+      );
+      const next = fromEvent || fromStorage || null;
+
+      if (next) {
+        setActiveStoreId(next);
+      }
+    };
+
+    window.addEventListener("storeChanged", syncStore);
+    window.addEventListener("storage", syncStore);
+
+    return () => {
+      window.removeEventListener("storeChanged", syncStore);
+      window.removeEventListener("storage", syncStore);
+    };
+  }, []);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setMessage("");
@@ -371,6 +441,10 @@ function App() {
       users: "Users",
       settings: "Settings",
       damaged: "Damaged / Spoiled",
+      attendance: "Attendance",
+      salary: "Salary",
+      expenses: "Expenses",
+      suppliers: "Suppliers / Due",
       account: "My Account",
     };
 
@@ -490,6 +564,38 @@ function App() {
       case "damaged":
         return (
           <Damaged
+            user={user}
+            activeStoreId={activeStoreId}
+          />
+        );
+
+      case "attendance":
+        return (
+          <Attendance
+            user={user}
+            activeStoreId={activeStoreId}
+          />
+        );
+
+      case "salary":
+        return (
+          <Salary
+            user={user}
+            activeStoreId={activeStoreId}
+          />
+        );
+
+      case "expenses":
+        return (
+          <Expenses
+            user={user}
+            activeStoreId={activeStoreId}
+          />
+        );
+
+      case "suppliers":
+        return (
+          <Suppliers
             user={user}
             activeStoreId={activeStoreId}
           />
@@ -705,6 +811,16 @@ function App() {
     );
   }
 
+  if (needFace) {
+    return (
+      <FaceCapture
+        user={user}
+        onDone={() => setNeedFace(false)}
+        onLogout={logout}
+      />
+    );
+  }
+
   return (
     <div className="app-shell">
       {sidebarOpen && isMobile && (
@@ -856,7 +972,7 @@ function App() {
           </div>
         </header>
 
-        <section className="content-area">
+        <section className="content-area" key={activeStoreId || "none"}>
           {renderPage()}
         </section>
       </main>
@@ -865,4 +981,3 @@ function App() {
 }
 
 export default App;
-

@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
@@ -13,6 +14,14 @@ const dashboardRoutes = require("./routes/dashboardRoutes");
 const damagedRoutes = require("./routes/damagedRoutes");
 const settingsRoutes = require("./routes/settingsRoutes");
 const customerRoutes = require("./routes/customerRoutes");
+
+// New HR / finance modules
+const attendanceRoutes = require("./routes/attendanceRoutes");
+const expenseRoutes = require("./routes/expenseRoutes");
+const supplierRoutes = require("./routes/supplierRoutes");
+const salaryRoutes = require("./routes/salaryRoutes");
+const faceRoutes = require("./routes/faceRoutes");
+
 const app = express();
 
 // ========================================
@@ -20,7 +29,10 @@ const app = express();
 // ========================================
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "6mb" }));
+
+// Serve uploaded face photos (read by the Python attendance terminal)
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Hide passwords from terminal logs
 app.use((req, res, next) => {
@@ -1593,8 +1605,6 @@ app.get(
 // ========================================
 // Existing route files
 // ========================================
-// Customer registration, login, profile,
-// point history and staff phone lookup
 app.use(
   "/api/customers",
   customerRoutes
@@ -1636,6 +1646,16 @@ app.use(
   blockViewerWrites,
   settingsRoutes
 );
+
+// ========================================
+// HR / Finance modules
+// (each route file applies its own verifyToken + role checks)
+// ========================================
+app.use("/api/attendance", attendanceRoutes);
+app.use("/api/expenses", expenseRoutes);
+app.use("/api/suppliers", supplierRoutes);
+app.use("/api/salary", salaryRoutes);
+app.use("/api/face", faceRoutes);
 
 // ========================================
 // 404

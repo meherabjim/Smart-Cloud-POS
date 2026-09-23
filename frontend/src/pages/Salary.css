@@ -1,0 +1,171 @@
+/* Salary — Stores design language */
+.sal-page {
+  min-height: 100vh;
+  padding: 28px 20px 48px;
+  background:
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.05), transparent 32%),
+    #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.sal-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.sal-header h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.sal-header p { margin: 8px 0 0; color: #64748b; font-size: 13px; max-width: 560px; line-height: 1.5; }
+
+.sal-payable {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding: 8px 18px;
+  border-radius: 14px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+.sal-payable span { font-size: 12px; color: #065f46; font-weight: 700; }
+.sal-payable strong { font-size: 22px; color: #047857; }
+
+.sal-card {
+  padding: 22px;
+  border-radius: 18px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 20px rgba(15, 23, 42, 0.05);
+}
+.sal-card.sal-empty { text-align: center; color: #64748b; padding: 40px; font-weight: 600; }
+
+.sal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.sal-filters { display: flex; gap: 8px; }
+.sal-filters select,
+.sal-filters input {
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 11px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  font-size: 14px;
+  outline: none;
+}
+.sal-filters select:focus,
+.sal-filters input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14); }
+.sal-payall {
+  height: 44px;
+  padding: 0 22px;
+  border: none;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #047857, #065f46);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(4, 120, 87, 0.22);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.sal-payall:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 14px 28px rgba(4, 120, 87, 0.28); }
+.sal-payall:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.sal-table-wrap { overflow-x: auto; }
+.sal-table { width: 100%; border-collapse: collapse; min-width: 720px; }
+.sal-table thead th {
+  text-align: left;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 2px solid #e2e8f0;
+}
+.sal-table td {
+  padding: 14px;
+  font-size: 14px;
+  color: #0f172a;
+  border-bottom: 1px solid #eef2f7;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.sal-empty { text-align: center; color: #64748b; padding: 40px 14px; }
+
+.sal-name { font-weight: 700; }
+.sal-role { font-size: 12px; color: #94a3b8; }
+
+.sal-edit { display: flex; gap: 6px; align-items: center; }
+.sal-edit input {
+  width: 110px;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  font-size: 14px;
+  outline: none;
+}
+.sal-edit input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14); }
+.sal-save {
+  height: 38px;
+  padding: 0 12px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #dbeafe;
+  border-radius: 9px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.sal-save:hover { background: #dbeafe; }
+
+.sal-absent { color: #b91c1c; font-weight: 700; }
+.sal-late { color: #b45309; font-weight: 700; }
+.sal-net { font-weight: 800; color: #047857; }
+
+.sal-pay {
+  height: 34px;
+  padding: 0 18px;
+  background: linear-gradient(135deg, #047857, #065f46);
+  color: #fff;
+  border: none;
+  border-radius: 9px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.sal-paid {
+  display: inline-flex;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  font-weight: 700;
+  font-size: 12.5px;
+}
+
+@media (max-width: 560px) {
+  .sal-page { padding: 18px 14px 36px; }
+  .sal-header h2 { font-size: 23px; }
+  .sal-card { padding: 16px; }
+}
