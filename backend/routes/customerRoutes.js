@@ -10,10 +10,12 @@ const {
   getDiscountedProducts,
   getCustomerProducts,
   getCustomerStores,
+  getAllCustomersAdmin,
 } = require("../controllers/customerController");
 
 const {
   verifyToken,
+  allowRoles,
 } = require("../middleware/authMiddleware");
 
 const router = express.Router();
@@ -117,6 +119,17 @@ router.get(
   "/me",
   verifyCustomerToken,
   getCustomerProfile
+);
+
+// ========================================
+// ADMIN ONLY: all customers list
+// ========================================
+
+router.get(
+  "/admin/all",
+  verifyToken,
+  allowRoles("Admin"),
+  getAllCustomersAdmin
 );
 
 // ========================================

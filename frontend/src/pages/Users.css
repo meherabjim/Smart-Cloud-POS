@@ -204,3 +204,57 @@
   .users-form-grid { grid-template-columns: 1fr; }
   .users-title { font-size: 20px; }
 }
+
+/* ---- All workers / customers (admin) ---- */
+.users-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+.users-stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 16px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.users-stat span { font-size: 10.5px; color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+.users-stat strong { font-size: 22px; color: var(--heading); font-variant-numeric: tabular-nums; }
+.users-stat.ok strong { color: #059669; }
+.users-stat.warn strong { color: #d97706; }
+.users-stat.bad strong { color: #e11d48; }
+
+.users-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.users-filters .users-input { width: 200px; }
+.users-filters .users-select { width: auto; }
+
+/* wide admin tables: natural column widths, no text cut */
+.users-table.wide { table-layout: auto; min-width: 1100px; }
+.users-table.wide th, .users-table.wide td { width: auto !important; }
+.users-table.wide .users-td { overflow: visible; text-overflow: clip; }
+.users-table .num { text-align: center; font-variant-numeric: tabular-nums; }
+.att-ok { color: #059669; font-weight: 800; }
+.att-warn { color: #d97706; font-weight: 800; }
+.att-bad { color: #e11d48; font-weight: 800; }
+
+.users-muted { font-size: 12px; color: var(--muted); }
+.users-store {
+  display: inline-flex; padding: 3px 10px; border-radius: 999px;
+  background: #eef2ff; color: #4338ca; font-size: 12px; font-weight: 700;
+}
+.users-pill {
+  display: inline-flex; padding: 3px 10px; border-radius: 999px;
+  background: #f2f1fa; color: #6b6785; font-size: 12px; font-weight: 700;
+}
+.users-pill.ok { background: #d1fae5; color: #047857; }
+.users-pending { margin-top: 3px; font-size: 11px; color: #d97706; font-weight: 700; }
+
+.users-actions { display: flex; gap: 6px; align-items: center; }
+.users-actions button { white-space: nowrap; }
+.users-small-button {
+  border: 1px solid var(--border); background: #fff; color: var(--heading);
+  border-radius: 8px; padding: 7px 11px; font-size: 12px; font-weight: 700; cursor: pointer;
+}

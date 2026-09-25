@@ -16,9 +16,25 @@ exports.getStatus = async (req, res) => {
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: "User not found." });
     }
+    // Staff (not Admin) must also set where their salary goes.
+    let needsPayout = false;
+    if (!["Admin", "Viewer"].includes(req.user.role)) {
+      try {
+        const [acc] = await db.query(
+          "SELECT id FROM staff_accounts WHERE user_id = ? AND status = 'Active' LIMIT 1",
+          [req.user.id]
+        );
+        needsPayout = acc.length === 0;
+      } catch (e) {
+        // staff_accounts table not migrated yet -> don't block login
+        needsPayout = false;
+      }
+    }
+
     return res.json({
       success: true,
       face_registered: Number(rows[0].face_registered) === 1,
+      needs_payout: needsPayout,
     });
   } catch (error) {
     console.error("Face Status Error:", error);

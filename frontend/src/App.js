@@ -24,6 +24,8 @@ import AttendanceCamera from "./pages/AttendanceCamera";
 import FaceCapture from "./pages/FaceCapture";
 import AiInsights from "./pages/AiInsights";
 import CustomerPortal from "./pages/CustomerPortal";
+import Customers from "./pages/Customers";
+import PayoutSetup from "./pages/PayoutSetup";
 import AiWidget from "./components/AiWidget";
 
 import "./App.css";
@@ -61,6 +63,8 @@ function App() {
 
   // First-login face registration
   const [needFace, setNeedFace] = useState(false);
+  // First-login salary account setup (after face)
+  const [needPayout, setNeedPayout] = useState(false);
 
   const [isMobile, setIsMobile] = useState(
     isBrowser ? window.innerWidth <= 992 : false
@@ -152,8 +156,14 @@ function App() {
       },
       {
         key: "users",
-        label: "Users",
+        label: "Workers",
         icon: "👥",
+        roles: ["Admin"],
+      },
+      {
+        key: "customers",
+        label: "Customers",
+        icon: "🎁",
         roles: ["Admin"],
       },
       {
@@ -314,12 +324,19 @@ function App() {
   useEffect(() => {
     if (!user) {
       setNeedFace(false);
+      setNeedPayout(false);
       return;
     }
 
     API.get("/api/face/status")
-      .then((res) => setNeedFace(!res.data?.face_registered))
-      .catch(() => setNeedFace(false));
+      .then((res) => {
+        setNeedFace(!res.data?.face_registered);
+        setNeedPayout(Boolean(res.data?.needs_payout));
+      })
+      .catch(() => {
+        setNeedFace(false);
+        setNeedPayout(false);
+      });
   }, [user]);
 
   // Keep the active store in sync when it is switched anywhere.
@@ -420,7 +437,8 @@ function App() {
       sales: "POS / Sales",
       reports: "Reports",
       stores: "Stores",
-      users: "Users",
+      users: "Workers",
+      customers: "Customers",
       settings: "Settings",
       damaged: "Damaged / Spoiled",
       attendance: "Attendance",
@@ -484,6 +502,8 @@ function App() {
         return <Stores user={user} activeStoreId={activeStoreId} />;
       case "users":
         return <Users user={user} activeStoreId={activeStoreId} />;
+      case "customers":
+        return <Customers user={user} />;
       case "settings":
         return <Settings user={user} activeStoreId={activeStoreId} />;
       case "account":
@@ -641,6 +661,16 @@ function App() {
       <FaceCapture
         user={user}
         onDone={() => setNeedFace(false)}
+        onLogout={logout}
+      />
+    );
+  }
+
+  if (needPayout) {
+    return (
+      <PayoutSetup
+        user={user}
+        onDone={() => setNeedPayout(false)}
         onLogout={logout}
       />
     );

@@ -20,6 +20,8 @@ A cloud-based, multi-store Point of Sale and retail management system. It covers
 - Staff attendance (Present / Late / Absent / Leave) with a monthly summary
 - Face-recognition attendance from the browser camera
 - Automatic salary calculation with absence and lateness deductions
+- Salary account per staff member (Cash, Bank, bKash, Nagad or Rocket), set right after face registration; later changes need the staff password and Admin approval
+- Salary payment shows the absent / late cut and where the money goes. Bank and mobile-wallet payouts are **demo records only** (no payment gateway is connected, no real money is sent); each gets a reference number and staff can see their payslips in My Account
 - Expense tracking; paid salaries are logged as expenses automatically
 - Supplier ledger with running due balance
 
@@ -35,6 +37,7 @@ A cloud-based, multi-store Point of Sale and retail management system. It covers
 **Multi-store and access control**
 - Many stores in one shared database, each row isolated by `store_id`
 - Five roles: Admin, Manager, Cashier, Store Keeper, Viewer (read-only)
+- Admin-only Workers page (every worker with store, monthly present / late / absent / leave, face status and salary account) and Customers page (every loyalty customer with points, purchases and stores)
 - JWT authentication
 
 ## Architecture
@@ -64,6 +67,7 @@ Create a `pos_db` database, then run these files in order:
 1. `database_structure.sql`, the base schema
 2. `backend/migrations/001_customer_loyalty.sql`, which adds the customer and loyalty-point tables
 3. `backend/migrations/002_hr_finance_face.sql`, which adds the HR, finance and face tables
+4. `backend/migrations/003_payout_accounts.sql`, which adds staff salary accounts and payout details on salary payments
 
 **2. Backend**
 

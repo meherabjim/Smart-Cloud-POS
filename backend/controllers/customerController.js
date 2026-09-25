@@ -473,7 +473,11 @@ exports.getCustomerByPhone = async (
         id: customer.id,
         name: customer.name,
         phone: customer.phone,
-        email: customer.email,
+        // Only Admin sees customer email; cashier needs name/points only
+        email:
+          req.user?.role === "Admin"
+            ? customer.email
+            : undefined,
         status: customer.status,
         points_balance:
           pointsBalance,
@@ -767,3 +771,92 @@ exports.getCustomerStores = async (
 
 exports.normalizePhone = normalizePhone;
 exports.isValidPhone = isValidPhone;
+// ========================================
+// ADMIN ONLY: all customers
+// GET /api/customers/admin/all?search=&store_id=
+// Shows every loyalty customer with points, total purchase and
+// which store(s) they bought from.
+// ========================================
+
+exports.getAllCustomersAdmin = async (
+  req,
+  res
+) => {
+  try {
+    const search = String(req.query.search || "").trim();
+    const storeId = Number(req.query.store_id) || null;
+
+    let sql = `
+      SELECT
+        c.id,
+        c.name,
+        c.phone,
+        c.email,
+        c.points_balance,
+        c.status,
+        c.created_at,
+        COUNT(sl.id) AS total_orders,
+        IFNULL(SUM(sl.payable_amount), 0) AS total_spent,
+        MAX(sl.created_at) AS last_purchase,
+        GROUP_CONCAT(DISTINCT st.name ORDER BY st.name SEPARATOR ', ') AS stores
+      FROM customers c
+      LEFT JOIN sales sl
+        ON sl.customer_id = c.id
+      LEFT JOIN stores st
+        ON st.id = sl.store_id
+      WHERE 1 = 1
+    `;
+    const params = [];
+
+    if (search) {
+      sql += " AND (c.name LIKE ? OR c.phone LIKE ? OR c.email LIKE ?)";
+      const like = `%${search}%`;
+      params.push(like, like, like);
+    }
+
+    if (storeId) {
+      sql += `
+        AND EXISTS (
+          SELECT 1 FROM sales s2
+          WHERE s2.customer_id = c.id AND s2.store_id = ?
+        )`;
+      params.push(storeId);
+    }
+
+    sql += `
+      GROUP BY c.id, c.name, c.phone, c.email,
+               c.points_balance, c.status, c.created_at
+      ORDER BY total_spent DESC, c.id DESC
+      LIMIT 1000
+    `;
+
+    const [rows] = await db.query(sql, params);
+
+    const customers = rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      phone: r.phone,
+      email: r.email,
+      status: r.status || "Active",
+      points_balance: Number(r.points_balance) || 0,
+      total_orders: Number(r.total_orders) || 0,
+      total_spent: Number(r.total_spent) || 0,
+      last_purchase: r.last_purchase,
+      stores: r.stores || "",
+      created_at: r.created_at,
+    }));
+
+    return res.json({
+      success: true,
+      count: customers.length,
+      total_points: customers.reduce((a, c) => a + c.points_balance, 0),
+      customers,
+    });
+  } catch (error) {
+    console.error("Admin Customers Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};

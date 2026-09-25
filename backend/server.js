@@ -22,6 +22,7 @@ const supplierRoutes = require("./routes/supplierRoutes");
 const salaryRoutes = require("./routes/salaryRoutes");
 const faceRoutes = require("./routes/faceRoutes");
 const aiRoutes = require("./routes/aiRoutes");
+const payoutRoutes = require("./routes/payoutRoutes");
 
 const app = express();
 
@@ -721,62 +722,101 @@ app.get(
 );
 
 // ========================================
-// Users: Viewer can read
+// Users (all workers): ADMIN ONLY
+// Returns every staff member with store name, salary account and
+// this month's attendance counts. ?store_id= narrows to one store,
+// ?year=&month= picks the attendance month (default: current month).
 // ========================================
 
 app.get(
   "/api/users",
   verifyToken,
-  allowRoles(
-    "Admin",
-    "Manager",
-    "Viewer"
-  ),
+  allowRoles("Admin"),
   async (req, res) => {
     try {
+      const now = new Date();
+      const year = Number(req.query.year) || now.getFullYear();
+      const month = Number(req.query.month) || now.getMonth() + 1;
+
       let sql = `
         SELECT
-          id,
-          name,
-          email,
-          role,
-          store_id
-        FROM users
+          u.id,
+          u.name,
+          u.email,
+          u.role,
+          u.store_id,
+          s.name AS store_name,
+          u.status,
+          IFNULL(u.salary, 0) AS salary,
+          IFNULL(u.face_registered, 0) AS face_registered,
+          sa.method AS pay_method,
+          sa.account_no AS pay_account_no,
+          sa.bank_name AS pay_bank_name,
+          (SELECT COUNT(*) FROM staff_accounts p
+            WHERE p.user_id = u.id AND p.status = 'Pending') AS pending_change,
+          IFNULL(SUM(a.status = 'Present'), 0) AS present_days,
+          IFNULL(SUM(a.status = 'Late'), 0)    AS late_days,
+          IFNULL(SUM(a.status = 'Absent'), 0)  AS absent_days,
+          IFNULL(SUM(a.status = 'Leave'), 0)   AS leave_days
+        FROM users u
+        LEFT JOIN stores s ON s.id = u.store_id
+        LEFT JOIN staff_accounts sa
+          ON sa.user_id = u.id AND sa.status = 'Active'
+        LEFT JOIN attendance a
+          ON a.user_id = u.id
+          AND YEAR(a.date) = ?
+          AND MONTH(a.date) = ?
       `;
 
-      const params = [];
+      const params = [year, month];
 
-      if (
-        !hasAllStoreReadAccess(
-          req.user.role
-        )
-      ) {
-        sql +=
-          " WHERE store_id = ?";
-
-        params.push(
-          req.user.store_id
-        );
-      } else if (
-        req.query.store_id
-      ) {
-        sql +=
-          " WHERE store_id = ?";
-
-        params.push(
-          req.query.store_id
-        );
+      if (req.query.store_id && req.query.store_id !== "all") {
+        sql += " WHERE u.store_id = ?";
+        params.push(Number(req.query.store_id));
       }
 
-      sql += " ORDER BY id DESC";
+      sql += `
+        GROUP BY u.id, u.name, u.email, u.role, u.store_id, s.name,
+                 u.status, u.salary, u.face_registered,
+                 sa.method, sa.account_no, sa.bank_name
+        ORDER BY s.name ASC, u.name ASC
+      `;
 
-      const [rows] =
-        await db.query(
-          sql,
-          params
-        );
+      const [rows] = await db.query(sql, params);
 
-      return res.json(rows);
+      return res.json(
+        rows.map((r) => {
+          const method = r.pay_method;
+          const masked = r.pay_account_no
+            ? `••••${String(r.pay_account_no).slice(-4)}`
+            : "";
+          let payLabel = "Not set";
+          if (method === "Cash") payLabel = "Cash";
+          else if (method === "Bank") payLabel = `Bank${r.pay_bank_name ? ` (${r.pay_bank_name})` : ""} ${masked}`;
+          else if (method) payLabel = `${method} ${masked}`;
+
+          return {
+            id: r.id,
+            name: r.name,
+            email: r.email,
+            role: r.role,
+            store_id: r.store_id,
+            store_name: r.store_name,
+            status: r.status,
+            salary: Number(r.salary) || 0,
+            face_registered: Number(r.face_registered) === 1,
+            pay_method: method || null,
+            pay_label: payLabel,
+            pending_change: Number(r.pending_change) > 0,
+            present_days: Number(r.present_days) || 0,
+            late_days: Number(r.late_days) || 0,
+            absent_days: Number(r.absent_days) || 0,
+            leave_days: Number(r.leave_days) || 0,
+            year,
+            month,
+          };
+        })
+      );
     } catch (error) {
       console.error(
         "Get Users Error:",
@@ -1658,6 +1698,7 @@ app.use("/api/suppliers", supplierRoutes);
 app.use("/api/salary", salaryRoutes);
 app.use("/api/face", faceRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/payout", payoutRoutes);
 
 // ========================================
 // 404
