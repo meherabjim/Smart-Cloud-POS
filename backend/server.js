@@ -21,6 +21,7 @@ const expenseRoutes = require("./routes/expenseRoutes");
 const supplierRoutes = require("./routes/supplierRoutes");
 const salaryRoutes = require("./routes/salaryRoutes");
 const faceRoutes = require("./routes/faceRoutes");
+const aiRoutes = require("./routes/aiRoutes");
 
 const app = express();
 
@@ -1656,6 +1657,7 @@ app.use("/api/expenses", expenseRoutes);
 app.use("/api/suppliers", supplierRoutes);
 app.use("/api/salary", salaryRoutes);
 app.use("/api/face", faceRoutes);
+app.use("/api/ai", aiRoutes);
 
 // ========================================
 // 404

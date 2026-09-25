@@ -1,6 +1,7 @@
 const db = require("../config/db");
 
-const hasAllStoreAccess = (role) => role === "Admin" || role === "Viewer";
+// Only Admin can read every store; others locked to their own store.
+const hasAllStoreAccess = (role) => role === "Admin";
 
 const resolveStore = (req, bodyOrQueryStoreId) => {
   if (hasAllStoreAccess(req.user.role)) {
@@ -9,7 +10,7 @@ const resolveStore = (req, bodyOrQueryStoreId) => {
   return req.user.store_id;
 };
 
-// GET /api/attendance?date=YYYY-MM-DD&store_id=
+// GET /api/attendance?date=&store_id=
 exports.getAttendanceByDate = async (req, res) => {
   try {
     const date = req.query.date || new Date().toISOString().slice(0, 10);
@@ -24,11 +25,7 @@ exports.getAttendanceByDate = async (req, res) => {
       WHERE (u.status IS NULL OR u.status = 'Active')
     `;
     const params = [date];
-
-    if (scopedStore) {
-      sql += " AND u.store_id = ?";
-      params.push(scopedStore);
-    }
+    if (scopedStore) { sql += " AND u.store_id = ?"; params.push(scopedStore); }
     sql += " ORDER BY u.name ASC";
 
     const [rows] = await db.query(sql, params);
@@ -43,19 +40,13 @@ exports.getAttendanceByDate = async (req, res) => {
 exports.markAttendance = async (req, res) => {
   try {
     const { user_id, date, status, check_in_time, note } = req.body;
-
     if (!user_id || !date || !status) {
-      return res.status(400).json({
-        success: false,
-        message: "user_id, date and status are required.",
-      });
+      return res.status(400).json({ success: false, message: "user_id, date and status are required." });
     }
-
     const allowed = ["Present", "Late", "Absent", "Leave"];
     if (!allowed.includes(status)) {
       return res.status(400).json({ success: false, message: "Invalid status." });
     }
-
     const [userRows] = await db.query(
       "SELECT id, store_id FROM users WHERE id = ? LIMIT 1",
       [user_id]
@@ -63,19 +54,10 @@ exports.markAttendance = async (req, res) => {
     if (userRows.length === 0) {
       return res.status(404).json({ success: false, message: "Staff member not found." });
     }
-
     const staffStore = userRows[0].store_id;
-
-    if (
-      !hasAllStoreAccess(req.user.role) &&
-      Number(staffStore) !== Number(req.user.store_id)
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: "This staff member is not in your store.",
-      });
+    if (!hasAllStoreAccess(req.user.role) && Number(staffStore) !== Number(req.user.store_id)) {
+      return res.status(403).json({ success: false, message: "This staff member is not in your store." });
     }
-
     await db.query(
       `
       INSERT INTO attendance
@@ -88,7 +70,6 @@ exports.markAttendance = async (req, res) => {
       `,
       [user_id, staffStore, date, status, check_in_time || null, note || null, req.user.id]
     );
-
     return res.json({ success: true, message: "Attendance saved." });
   } catch (error) {
     console.error("Mark Attendance Error:", error);
@@ -117,19 +98,12 @@ exports.getMonthlySummary = async (req, res) => {
       WHERE (u.status IS NULL OR u.status = 'Active')
     `;
     const params = [year, month];
-
-    if (scopedStore) {
-      sql += " AND u.store_id = ?";
-      params.push(scopedStore);
-    }
+    if (scopedStore) { sql += " AND u.store_id = ?"; params.push(scopedStore); }
     sql += " GROUP BY u.id ORDER BY u.name ASC";
 
     const [rows] = await db.query(sql, params);
-
     return res.json({
-      success: true,
-      year,
-      month,
+      success: true, year, month,
       staff: rows.map((r) => ({
         ...r,
         salary: Number(r.salary) || 0,
@@ -141,6 +115,49 @@ exports.getMonthlySummary = async (req, res) => {
     });
   } catch (error) {
     console.error("Attendance Summary Error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// POST /api/attendance/close-day   body: { date, store_id? }
+// Marks active staff with NO row for the date as Absent.
+exports.closeDay = async (req, res) => {
+  try {
+    const date = req.body.date || new Date().toISOString().slice(0, 10);
+    const scopedStore = resolveStore(req, req.body.store_id);
+    if (!scopedStore) {
+      return res.status(400).json({ success: false, message: "A store is required to close the day." });
+    }
+    const [missing] = await db.query(
+      `
+      SELECT u.id AS user_id, u.store_id
+      FROM users u
+      LEFT JOIN attendance a ON a.user_id = u.id AND a.date = ?
+      WHERE u.store_id = ?
+        AND (u.status IS NULL OR u.status = 'Active')
+        AND a.id IS NULL
+      `,
+      [date, scopedStore]
+    );
+    let marked = 0;
+    for (const m of missing) {
+      await db.query(
+        `
+        INSERT INTO attendance (user_id, store_id, date, status, created_by)
+        VALUES (?, ?, ?, 'Absent', ?)
+        ON DUPLICATE KEY UPDATE status = status
+        `,
+        [m.user_id, m.store_id, date, req.user.id]
+      );
+      marked += 1;
+    }
+    return res.json({
+      success: true,
+      message: `Day closed. ${marked} staff marked Absent for ${date}.`,
+      date, marked_absent: marked,
+    });
+  } catch (error) {
+    console.error("Close Day Error:", error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };

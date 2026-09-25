@@ -1,48 +1,58 @@
+:root {
+  --face-bg: #f4f5f8;
+  --face-card: #ffffff;
+  --face-line: #eceef3;
+  --face-text: #111524;
+  --face-text-muted: #60708a;
+  --face-text-soft: #8b90a3;
+  --face-accent: #5b57e0;
+  --face-accent-2: #7c6cf0;
+  --face-shadow: 0 1px 2px rgba(17,21,36,.04), 0 22px 48px -24px rgba(17,21,36,.28);
+}
+
 .face-shell {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  background:
-    radial-gradient(circle at top left, rgba(59, 130, 246, 0.16), transparent 30%),
-    radial-gradient(circle at top right, rgba(16, 185, 129, 0.14), transparent 28%),
-    linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
-  font-family: "Inter", "Segoe UI", Arial, sans-serif;
+  min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
+  background: var(--face-bg);
+  font-family: "Inter", "Segoe UI", system-ui, Arial, sans-serif;
+  color: var(--face-text-muted);
 }
 .face-card {
-  width: 100%;
-  max-width: 460px;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  border-radius: 22px;
-  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.12);
-  padding: 24px;
-  text-align: center;
+  width: 100%; max-width: 440px; background: var(--face-card);
+  border: 1px solid var(--face-line); border-radius: 16px;
+  box-shadow: var(--face-shadow); padding: 24px; text-align: center;
 }
-.face-title { margin: 0 0 6px; font-size: 22px; font-weight: 800; color: #0f172a; }
-.face-sub { margin: 0 0 18px; font-size: 14px; color: #64748b; line-height: 1.5; }
-.face-video-wrap { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 16px; overflow: hidden; background: #0f172a; }
+.face-title { margin: 0 0 6px; font-size: 21px; font-weight: 800; letter-spacing: -.02em; color: var(--face-text); }
+.face-sub { margin: 0 0 18px; font-size: 13px; color: var(--face-text-muted); line-height: 1.55; }
+
+.face-video-wrap { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 14px; overflow: hidden; background: #0f1120; }
 .face-video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
 .face-oval {
-  position: absolute; top: 50%; left: 50%;
-  width: 55%; height: 78%;
-  transform: translate(-50%, -50%);
-  border: 3px dashed rgba(255, 255, 255, 0.7);
-  border-radius: 50%;
-  pointer-events: none;
+  position: absolute; top: 50%; left: 50%; width: 55%; height: 78%;
+  transform: translate(-50%, -50%); border: 3px dashed rgba(255, 255, 255, 0.7);
+  border-radius: 50%; pointer-events: none;
 }
-.face-error { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: #fee2e2; color: #b91c1c; font-size: 13px; font-weight: 600; }
-.face-tips { margin: 12px 0 4px; font-size: 12px; color: #94a3b8; }
+.face-loading {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: #fff; background: rgba(15, 17, 32, 0.55); font-weight: 700; font-size: 13px;
+}
+
+.face-error { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: #fdeef0; color: #d1435b; font-size: 12.5px; font-weight: 700; }
+.face-tips { margin: 12px 0 4px; font-size: 12px; color: var(--face-text-soft); }
+
 .face-actions { display: flex; gap: 10px; margin-top: 14px; }
 .face-capture-btn {
-  flex: 1; height: 48px; border: none; border-radius: 14px; color: #fff;
-  font-size: 15px; font-weight: 800; cursor: pointer;
-  background: linear-gradient(135deg, #10b981, #047857);
-  box-shadow: 0 12px 28px rgba(4, 120, 87, 0.28);
+  flex: 1; height: 46px; border: none; border-radius: 12px; color: #fff;
+  font-size: 14px; font-weight: 700; cursor: pointer;
+  background: var(--face-accent);
+  box-shadow: 0 12px 24px -12px rgba(91,87,224,.8);
+  transition: transform .15s ease, filter .15s ease;
 }
-.face-capture-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.face-capture-btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.05); }
+.face-capture-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
 .face-logout-btn {
-  height: 48px; padding: 0 18px; border: 1px solid #dbe4f0; background: #fff;
-  color: #334155; border-radius: 14px; font-weight: 700; cursor: pointer;
+  height: 46px; padding: 0 18px; border: 1px solid var(--face-line); background: #fff;
+  color: var(--face-text-muted); border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: .15s ease;
 }
+.face-logout-btn:hover { background: #fafbfc; color: var(--face-text); }

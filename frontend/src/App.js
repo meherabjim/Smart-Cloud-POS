@@ -20,8 +20,11 @@ import Attendance from "./pages/Attendance";
 import Expenses from "./pages/Expenses";
 import Suppliers from "./pages/Suppliers";
 import Salary from "./pages/Salary";
+import AttendanceCamera from "./pages/AttendanceCamera";
 import FaceCapture from "./pages/FaceCapture";
+import AiInsights from "./pages/AiInsights";
 import CustomerPortal from "./pages/CustomerPortal";
+import AiWidget from "./components/AiWidget";
 
 import "./App.css";
 
@@ -67,69 +70,55 @@ function App() {
     isBrowser ? window.innerWidth > 992 : true
   );
 
-  /*
-   * Viewer সব page দেখতে পারবে।
-   * তবে কোনো data add/edit/delete করার permission
-   * backend এবং individual page থেকে block করতে হবে।
-   */
   const menuItems = useMemo(
     () => [
       {
         key: "dashboard",
         label: "Dashboard",
         icon: "📊",
-        roles: ["Admin", "Viewer"],
+        roles: ["Admin"],
       },
       {
         key: "products",
         label: "Products",
         icon: "📦",
-        roles: [
-          "Admin",
-          "Manager",
-          "Store Keeper",
-          "Viewer",
-        ],
+        roles: ["Admin", "Manager", "Store Keeper"],
       },
       {
         key: "inventory",
         label: "Inventory",
         icon: "🔄",
-        roles: [
-          "Admin",
-          "Manager",
-          "Store Keeper",
-          "Viewer",
-        ],
+        roles: ["Admin", "Manager", "Store Keeper"],
       },
       {
         key: "sales",
         label: "POS / Sales",
         icon: "🛒",
-        roles: ["Admin", "Cashier", "Viewer"],
+        roles: ["Admin", "Cashier"],
       },
       {
         key: "reports",
         label: "Reports",
         icon: "📈",
-        roles: ["Admin", "Manager", "Viewer"],
+        roles: ["Admin", "Manager"],
       },
       {
         key: "damaged",
         label: "Damaged / Spoiled",
         icon: "🗑️",
-        roles: [
-          "Admin",
-          "Manager",
-          "Store Keeper",
-          "Viewer",
-        ],
+        roles: ["Admin", "Manager", "Store Keeper"],
       },
       {
         key: "attendance",
         label: "Attendance",
         icon: "🕒",
-        roles: ["Admin", "Manager", "Viewer"],
+        roles: ["Admin", "Manager"],
+      },
+      {
+        key: "attendance-camera",
+        label: "Attendance Camera",
+        icon: "📷",
+        roles: ["Admin", "Manager"],
       },
       {
         key: "salary",
@@ -141,43 +130,43 @@ function App() {
         key: "expenses",
         label: "Expenses",
         icon: "🧾",
-        roles: ["Admin", "Manager", "Viewer"],
+        roles: ["Admin", "Manager"],
       },
       {
         key: "suppliers",
         label: "Suppliers / Due",
         icon: "🚚",
-        roles: ["Admin", "Manager", "Viewer"],
+        roles: ["Admin", "Manager"],
+      },
+      {
+        key: "ai-insights",
+        label: "AI Insights",
+        icon: "🤖",
+        roles: ["Admin", "Manager"],
       },
       {
         key: "stores",
         label: "Stores",
         icon: "🏪",
-        roles: ["Admin", "Viewer"],
+        roles: ["Admin"],
       },
       {
         key: "users",
         label: "Users",
         icon: "👥",
-        roles: ["Admin", "Viewer"],
+        roles: ["Admin"],
       },
       {
         key: "settings",
         label: "Settings",
         icon: "⚙️",
-        roles: ["Admin", "Viewer"],
+        roles: ["Admin"],
       },
       {
         key: "account",
         label: "My Account",
         icon: "🔑",
-        roles: [
-          "Admin",
-          "Manager",
-          "Cashier",
-          "Store Keeper",
-          "Viewer",
-        ],
+        roles: ["Admin", "Manager", "Cashier", "Store Keeper"],
       },
     ],
     []
@@ -196,10 +185,6 @@ function App() {
       return "products";
     }
 
-    if (role === "Viewer") {
-      return "dashboard";
-    }
-
     return "dashboard";
   }, []);
 
@@ -213,7 +198,7 @@ function App() {
   );
 
   const hasAllStoreAccess = useCallback((role) => {
-    return role === "Admin" || role === "Viewer";
+    return role === "Admin";
   }, []);
 
   useEffect(() => {
@@ -326,9 +311,8 @@ function App() {
   }, [activeStoreId]);
 
   // After login, check if this user still needs to register their face.
-  // Viewer (demo) is skipped.
   useEffect(() => {
-    if (!user || user.role === "Viewer") {
+    if (!user) {
       setNeedFace(false);
       return;
     }
@@ -338,9 +322,7 @@ function App() {
       .catch(() => setNeedFace(false));
   }, [user]);
 
-  // Keep the active store in sync when it is switched anywhere
-  // (Stores page fires "storeChanged"; other tabs fire "storage").
-  // This makes the header and every page reflect the new store live.
+  // Keep the active store in sync when it is switched anywhere.
   useEffect(() => {
     const syncStore = (event) => {
       const fromEvent = Number(event?.detail?.storeId);
@@ -442,9 +424,11 @@ function App() {
       settings: "Settings",
       damaged: "Damaged / Spoiled",
       attendance: "Attendance",
+      "attendance-camera": "Attendance Camera",
       salary: "Salary",
       expenses: "Expenses",
       suppliers: "Suppliers / Due",
+      "ai-insights": "AI Insights",
       account: "My Account",
     };
 
@@ -481,141 +465,51 @@ function App() {
 
     if (!allowedPages.includes(page)) {
       return (
-        <Dashboard
-          user={user}
-          activeStoreId={activeStoreId}
-        />
+        <Dashboard user={user} activeStoreId={activeStoreId} />
       );
     }
 
     switch (page) {
       case "dashboard":
-        return (
-          <Dashboard
-            user={user}
-            activeStoreId={activeStoreId}
-          />
-        );
-
+        return <Dashboard user={user} activeStoreId={activeStoreId} />;
       case "products":
-        return (
-          <Products
-            user={user}
-            activeStoreId={activeStoreId}
-          />
-        );
-
+        return <Products user={user} activeStoreId={activeStoreId} />;
       case "inventory":
-        return (
-          <Inventory
-            user={user}
-            activeStoreId={activeStoreId}
-          />
-        );
-
+        return <Inventory user={user} activeStoreId={activeStoreId} />;
       case "sales":
-        return (
-          <Sales
-            user={user}
-            activeStoreId={activeStoreId}
-          />
-        );
-
+        return <Sales user={user} activeStoreId={activeStoreId} />;
       case "reports":
-        return (
-          <Reports
-            user={user}
-            activeStoreId={activeStoreId}
-          />
-        );
-
+        return <Reports user={user} activeStoreId={activeStoreId} />;
       case "stores":
-        return (
-          <Stores
-            user={user}
-            activeStoreId={activeStoreId}
-          />
-        );
-
+        return <Stores user={user} activeStoreId={activeStoreId} />;
       case "users":
-        return (
-          <Users
-            user={user}
-            activeStoreId={activeStoreId}
-          />
-        );
-
+        return <Users user={user} activeStoreId={activeStoreId} />;
       case "settings":
-        return (
-          <Settings
-            user={user}
-            activeStoreId={activeStoreId}
-          />
-        );
-
+        return <Settings user={user} activeStoreId={activeStoreId} />;
       case "account":
-        return (
-          <Account
-            user={user}
-            activeStoreId={activeStoreId}
-          />
-        );
-
+        return <Account user={user} activeStoreId={activeStoreId} />;
       case "damaged":
-        return (
-          <Damaged
-            user={user}
-            activeStoreId={activeStoreId}
-          />
-        );
-
+        return <Damaged user={user} activeStoreId={activeStoreId} />;
       case "attendance":
-        return (
-          <Attendance
-            user={user}
-            activeStoreId={activeStoreId}
-          />
-        );
-
+        return <Attendance user={user} activeStoreId={activeStoreId} />;
+      case "attendance-camera":
+        return <AttendanceCamera user={user} activeStoreId={activeStoreId} />;
       case "salary":
-        return (
-          <Salary
-            user={user}
-            activeStoreId={activeStoreId}
-          />
-        );
-
+        return <Salary user={user} activeStoreId={activeStoreId} />;
       case "expenses":
-        return (
-          <Expenses
-            user={user}
-            activeStoreId={activeStoreId}
-          />
-        );
-
+        return <Expenses user={user} activeStoreId={activeStoreId} />;
       case "suppliers":
-        return (
-          <Suppliers
-            user={user}
-            activeStoreId={activeStoreId}
-          />
-        );
-
+        return <Suppliers user={user} activeStoreId={activeStoreId} />;
+      case "ai-insights":
+        return <AiInsights user={user} activeStoreId={activeStoreId} />;
       default:
-        return (
-          <Dashboard
-            user={user}
-            activeStoreId={activeStoreId}
-          />
-        );
+        return <Dashboard user={user} activeStoreId={activeStoreId} />;
     }
   };
 
   if (showCustomerPortal) {
     return (
-      <CustomerPortal
-        onBack={() => setShowCustomerPortal(false)}
-      />
+      <CustomerPortal onBack={() => setShowCustomerPortal(false)} />
     );
   }
 
@@ -624,7 +518,6 @@ function App() {
       <div className="screen-center">
         <div className="loader-card">
           <div className="loader-spinner" />
-
           <p>Checking login...</p>
         </div>
       </div>
@@ -636,131 +529,80 @@ function App() {
       <div className="login-shell">
         <div className="login-card">
           <section className="login-hero">
-            <div className="hero-badge">
-              ☁ Cloud POS
-            </div>
-
-            <h1>
-              Retail management that feels fast,
-              clean and reliable
-            </h1>
-
+            <div className="hero-badge">☁ Cloud POS</div>
+            <h1>Retail management that feels fast, clean and reliable</h1>
             <p>
-              Track sales, inventory, stores,
-              reports and users from one
+              Track sales, inventory, stores, reports and users from one
               professional control panel.
             </p>
 
             <div className="hero-points">
               <div className="hero-point">
                 <span>⚡</span>
-
                 <div>
                   <strong>Fast billing</strong>
-
-                  <small>
-                    Quick POS workflow for daily
-                    sales operations.
-                  </small>
+                  <small>Quick POS workflow for daily sales operations.</small>
                 </div>
               </div>
-
               <div className="hero-point">
                 <span>📦</span>
-
                 <div>
                   <strong>Stock control</strong>
-
-                  <small>
-                    Monitor products and inventory
-                    movement easily.
-                  </small>
+                  <small>Monitor products and inventory movement easily.</small>
                 </div>
               </div>
-
               <div className="hero-point">
                 <span>📊</span>
-
                 <div>
                   <strong>Smart reports</strong>
-
-                  <small>
-                    See business performance in a
-                    structured way.
-                  </small>
+                  <small>See business performance in a structured way.</small>
                 </div>
               </div>
             </div>
           </section>
 
           <section className="login-panel">
-            <form
-              className="login-form"
-              onSubmit={handleLogin}
-            >
+            <form className="login-form" onSubmit={handleLogin}>
               <div className="login-form-head">
                 <h2>Welcome back</h2>
-
-                <p>
-                  Login with your account
-                  credentials
-                </p>
+                <p>Login with your account credentials</p>
               </div>
 
               <div className="form-group">
-                <label htmlFor="email">
-                  Email address
-                </label>
-
+                <label htmlFor="email">Email address</label>
                 <input
                   id="email"
                   type="email"
                   value={email}
-                  onChange={(e) =>
-                    setEmail(e.target.value)
-                  }
+                  onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@example.com"
                   required
                 />
               </div>
 
               <div className="form-group">
-                <label htmlFor="password">
-                  Password
-                </label>
-
+                <label htmlFor="password">Password</label>
                 <input
                   id="password"
                   type="password"
                   value={password}
-                  onChange={(e) =>
-                    setPassword(e.target.value)
-                  }
+                  onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   required
                 />
               </div>
 
-              <div
-                className={`form-message ${
-                  message ? "show" : ""
-                }`}
-              >
+              <div className={`form-message ${message ? "show" : ""}`}>
                 {message || " "}
               </div>
 
-              <button
-                type="submit"
-                className="btn-primary"
-              >
+              <button type="submit" className="btn-primary">
                 Login
               </button>
 
               <button
                 type="button"
-                onClick={() =>
-                  setShowCustomerPortal(true)
-                }
+                onClick={() => setShowCustomerPortal(true)}
                 style={{
                   width: "100%",
                   minHeight: "46px",
@@ -775,30 +617,13 @@ function App() {
                     "linear-gradient(135deg, #f5f3ff 0%, #fff1f7 100%)",
                   border: "1px solid #c4b5fd",
                   borderRadius: "10px",
-                  boxShadow:
-                    "0 6px 16px rgba(91, 33, 182, 0.10)",
+                  boxShadow: "0 6px 16px rgba(91, 33, 182, 0.10)",
                   cursor: "pointer",
                   fontSize: "14px",
                   fontWeight: 800,
                   letterSpacing: "0.01em",
                   transition:
                     "transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease",
-                }}
-                onMouseEnter={(event) => {
-                  event.currentTarget.style.transform =
-                    "translateY(-1px)";
-                  event.currentTarget.style.boxShadow =
-                    "0 10px 22px rgba(91, 33, 182, 0.16)";
-                  event.currentTarget.style.borderColor =
-                    "#8b5cf6";
-                }}
-                onMouseLeave={(event) => {
-                  event.currentTarget.style.transform =
-                    "translateY(0)";
-                  event.currentTarget.style.boxShadow =
-                    "0 6px 16px rgba(91, 33, 182, 0.10)";
-                  event.currentTarget.style.borderColor =
-                    "#c4b5fd";
                 }}
               >
                 <span aria-hidden="true">🎁</span>
@@ -826,35 +651,24 @@ function App() {
       {sidebarOpen && isMobile && (
         <div
           className="sidebar-backdrop"
-          onClick={() =>
-            setSidebarOpen(false)
-          }
+          onClick={() => setSidebarOpen(false)}
           role="button"
           tabIndex={0}
           aria-label="Close sidebar"
           onKeyDown={(e) => {
-            if (
-              e.key === "Enter" ||
-              e.key === " "
-            ) {
+            if (e.key === "Enter" || e.key === " ") {
               setSidebarOpen(false);
             }
           }}
         />
       )}
 
-      <aside
-        className={`sidebar ${
-          sidebarOpen ? "open" : ""
-        }`}
-      >
+      <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="sidebar-top">
           <div className="brand">
             <div className="brand-mark">☁</div>
-
             <div>
               <h2>Cloud POS</h2>
-
               <p>Retail Control Panel</p>
             </div>
           </div>
@@ -862,9 +676,7 @@ function App() {
           {isMobile && (
             <button
               className="sidebar-close"
-              onClick={() =>
-                setSidebarOpen(false)
-              }
+              onClick={() => setSidebarOpen(false)}
               aria-label="Close sidebar"
               type="button"
             >
@@ -875,26 +687,15 @@ function App() {
 
         <nav className="sidebar-nav">
           {menuItems
-            .filter((item) =>
-              item.roles.includes(user.role)
-            )
+            .filter((item) => item.roles.includes(user.role))
             .map((item) => (
               <button
                 key={item.key}
-                className={`nav-btn ${
-                  page === item.key
-                    ? "active"
-                    : ""
-                }`}
-                onClick={() =>
-                  goToPage(item.key)
-                }
+                className={`nav-btn ${page === item.key ? "active" : ""}`}
+                onClick={() => goToPage(item.key)}
                 type="button"
               >
-                <span className="nav-icon">
-                  {item.icon}
-                </span>
-
+                <span className="nav-icon">{item.icon}</span>
                 <span>{item.label}</span>
               </button>
             ))}
@@ -905,26 +706,18 @@ function App() {
             <div className="profile-avatar">
               {user.name?.charAt(0) || "U"}
             </div>
-
             <div>
               <strong>{user.name}</strong>
-
               <small>
                 {user.role} ·{" "}
                 {hasAllStoreAccess(user.role)
                   ? "All Stores"
-                  : `Store #${
-                      activeStoreId || "-"
-                    }`}
+                  : `Store #${activeStoreId || "-"}`}
               </small>
             </div>
           </div>
 
-          <button
-            className="logout-btn"
-            onClick={logout}
-            type="button"
-          >
+          <button className="logout-btn" onClick={logout} type="button">
             🚪 Logout
           </button>
         </div>
@@ -936,9 +729,7 @@ function App() {
             {isMobile && (
               <button
                 className="menu-toggle"
-                onClick={() =>
-                  setSidebarOpen(true)
-                }
+                onClick={() => setSidebarOpen(true)}
                 aria-label="Open sidebar"
                 type="button"
               >
@@ -948,25 +739,18 @@ function App() {
 
             <div>
               <h1>{pageTitle}</h1>
-
-              <p>
-                Cloud POS & Inventory Management
-                System
-              </p>
+              <p>Cloud POS & Inventory Management System</p>
             </div>
           </div>
 
           <div className="topbar-right">
             <div className="topbar-user">
               <span className="user-dot" />
-
               <span>
                 {user.name} · {user.role} ·{" "}
                 {hasAllStoreAccess(user.role)
                   ? "All Stores"
-                  : `Store #${
-                      activeStoreId || "-"
-                    }`}
+                  : `Store #${activeStoreId || "-"}`}
               </span>
             </div>
           </div>
@@ -976,6 +760,7 @@ function App() {
           {renderPage()}
         </section>
       </main>
+            <AiWidget user={user} activeStoreId={activeStoreId} />
     </div>
   );
 }

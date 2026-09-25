@@ -1,0 +1,80 @@
+:root {
+  --cam-bg: #f4f5f8;
+  --cam-card: #ffffff;
+  --cam-soft: #fafbfc;
+  --cam-line: #eceef3;
+  --cam-line-soft: #f4f5f8;
+  --cam-text: #111524;
+  --cam-text2: #3a4156;
+  --cam-text-muted: #60708a;
+  --cam-accent: #5b57e0;
+  --cam-accent-2: #7c6cf0;
+  --cam-green: #0f9d58;
+  --cam-red: #d1435b;
+  --cam-amber: #c67c00;
+  --cam-shadow: 0 1px 2px rgba(17,21,36,.04), 0 14px 30px -18px rgba(17,21,36,.22);
+}
+
+.cam-page {
+  min-height: 100vh; padding: 22px;
+  background: var(--cam-bg);
+  font-family: "Inter","Segoe UI",system-ui,Arial,sans-serif; color: var(--cam-text2);
+  font-size: 14px;
+  display: flex; flex-direction: column; gap: 18px;
+}
+
+.cam-header {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding-left: 14px;
+  border-left: 4px solid transparent;
+  border-image: linear-gradient(180deg, var(--cam-accent), var(--cam-accent-2)) 1;
+}
+.cam-header h2 { margin: 0; font-size: 23px; font-weight: 800; letter-spacing: -0.02em; color: var(--cam-text); }
+.cam-header p { margin: 5px 0 0; color: var(--cam-text-muted); font-size: 13px; max-width: 620px; }
+
+.cam-store-badge { min-width: 120px; padding: 10px 16px; border-radius: 12px; background: var(--cam-card); border: 1px solid var(--cam-line); box-shadow: var(--cam-shadow); text-align: center; }
+.cam-store-badge span { display: block; font-size: 10.5px; color: var(--cam-text-muted); font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.cam-store-badge strong { font-size: 18px; color: var(--cam-accent); font-variant-numeric: tabular-nums; }
+
+.cam-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 18px; }
+@media (max-width: 900px) { .cam-grid { grid-template-columns: 1fr; } }
+
+.cam-card { background: var(--cam-card); border: 1px solid var(--cam-line); border-radius: 16px; box-shadow: var(--cam-shadow); padding: 18px; }
+
+.cam-video-wrap { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 14px; overflow: hidden; background: #0f1120; }
+.cam-video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.cam-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #cbd0dc; font-weight: 700; }
+
+.cam-result { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px; text-align: center; font-weight: 800; font-size: 17px; color: #fff; }
+.cam-result.good { background: rgba(15,157,88,.9); }
+.cam-result.bad { background: rgba(209,67,91,.9); }
+.cam-result.info { background: rgba(91,87,224,.9); }
+
+.cam-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 14px; }
+.cam-btn { border: none; border-radius: 11px; height: 40px; padding: 0 16px; font-weight: 700; font-size: 13px; cursor: pointer; color: #fff; transition: transform .15s ease, filter .15s ease; }
+.cam-btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.05); }
+.cam-btn.start { background: var(--cam-green); }
+.cam-btn.stop { background: var(--cam-red); }
+.cam-btn.refresh { background: var(--cam-accent); }
+.cam-btn.close { background: var(--cam-amber); }
+.cam-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.cam-status { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: #fbf1dc; color: var(--cam-amber); font-size: 13px; font-weight: 700; }
+
+.cam-list-title { margin: 0 0 12px; font-size: 15px; font-weight: 700; color: var(--cam-text); }
+.cam-list-wrap { overflow-x: auto; }
+.cam-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+.cam-table th, .cam-table td { padding: 11px 14px; text-align: left; border-bottom: 1px solid var(--cam-line-soft); white-space: nowrap; }
+.cam-table th { background: var(--cam-soft); color: var(--cam-text-muted); font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid var(--cam-line); }
+.cam-table td { font-size: 13.5px; color: var(--cam-text); font-variant-numeric: tabular-nums; }
+.cam-table tbody tr:last-child td { border-bottom: none; }
+.cam-table tbody tr:hover td { background: #fafbff; }
+.cam-bold { font-weight: 700; color: var(--cam-text); }
+.cam-empty { text-align: center; color: var(--cam-text-muted); padding: 26px; }
+
+.cam-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; font-size: 11.5px; font-weight: 700; }
+.cam-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.cam-badge.present { background: #e7f6ee; color: var(--cam-green); }
+.cam-badge.late { background: #fbf1dc; color: var(--cam-amber); }
+.cam-badge.absent { background: #fdeef0; color: var(--cam-red); }
+.cam-badge.leave { background: #eef0fe; color: var(--cam-accent); }
