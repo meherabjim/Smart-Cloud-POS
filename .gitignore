@@ -12,3 +12,6 @@ npm-debug.log*
 Thumbs.db
 
 backend/.env
+
+# Uploaded staff photos (personal data - never commit)
+backend/uploads/
