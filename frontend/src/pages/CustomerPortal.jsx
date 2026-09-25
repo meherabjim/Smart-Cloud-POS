@@ -514,6 +514,27 @@ function CustomerPortal({ onBack }) {
     );
   }
 
+  if (!customer) {
+    return (
+      <div className="customer-auth-page">
+        <div className="customer-loading">
+          {message || "Loading your loyalty account..."}
+          {message && (
+            <div style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                className="customer-primary-btn"
+                onClick={logout}
+              >
+                Login again
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="customer-portal">
       <header className="customer-portal-header">
@@ -529,7 +550,7 @@ function CustomerPortal({ onBack }) {
           <p>
             {customer.phone}
             {customer.email
-              ? ` Â· ${customer.email}`
+              ? ` · ${customer.email}`
               : ""}
           </p>
         </div>
