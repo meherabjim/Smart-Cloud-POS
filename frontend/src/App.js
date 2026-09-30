@@ -27,8 +27,20 @@ import CustomerPortal from "./pages/CustomerPortal";
 import Customers from "./pages/Customers";
 import PayoutSetup from "./pages/PayoutSetup";
 import AiWidget from "./components/AiWidget";
+import Icon from "./components/Icon";
 
 import "./App.css";
+
+// Sidebar groups, in this order
+const NAV_SECTIONS = ["Overview", "Operations", "People", "Finance", "Settings"];
+
+const todayLabel = () =>
+  new Date().toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
 const API = axios.create({
   baseURL: process.env.REACT_APP_API_URL || "https://smart-cloud-pos.onrender.com",
@@ -79,103 +91,120 @@ function App() {
       {
         key: "dashboard",
         label: "Dashboard",
-        icon: "📊",
+        icon: "dashboard",
+        section: "Overview",
         roles: ["Admin"],
       },
       {
         key: "products",
         label: "Products",
-        icon: "📦",
+        icon: "products",
+        section: "Operations",
         roles: ["Admin", "Manager", "Store Keeper"],
       },
       {
         key: "inventory",
         label: "Inventory",
-        icon: "🔄",
+        icon: "inventory",
+        section: "Operations",
         roles: ["Admin", "Manager", "Store Keeper"],
       },
       {
         key: "sales",
         label: "POS / Sales",
-        icon: "🛒",
+        icon: "sales",
+        section: "Operations",
         roles: ["Admin", "Cashier"],
       },
       {
         key: "reports",
         label: "Reports",
-        icon: "📈",
+        icon: "reports",
+        section: "Overview",
         roles: ["Admin", "Manager"],
       },
       {
         key: "damaged",
         label: "Damaged / Spoiled",
-        icon: "🗑️",
+        icon: "damaged",
+        section: "Operations",
         roles: ["Admin", "Manager", "Store Keeper"],
       },
       {
         key: "attendance",
         label: "Attendance",
-        icon: "🕒",
+        icon: "attendance",
+        section: "People",
         roles: ["Admin", "Manager"],
       },
       {
         key: "attendance-camera",
         label: "Attendance Camera",
-        icon: "📷",
+        icon: "camera",
+        section: "People",
         roles: ["Admin", "Manager"],
       },
       {
         key: "salary",
         label: "Salary",
-        icon: "💵",
+        icon: "salary",
+        section: "Finance",
         roles: ["Admin"],
       },
       {
         key: "expenses",
         label: "Expenses",
-        icon: "🧾",
+        icon: "expenses",
+        section: "Finance",
         roles: ["Admin", "Manager"],
       },
       {
         key: "suppliers",
         label: "Suppliers / Due",
-        icon: "🚚",
+        icon: "suppliers",
+        section: "Finance",
         roles: ["Admin", "Manager"],
       },
       {
         key: "ai-insights",
         label: "AI Insights",
-        icon: "🤖",
+        icon: "ai",
+        section: "Overview",
         roles: ["Admin", "Manager"],
       },
       {
         key: "stores",
         label: "Stores",
-        icon: "🏪",
+        icon: "stores",
+        section: "Settings",
         roles: ["Admin"],
       },
       {
         key: "users",
         label: "Workers",
-        icon: "👥",
+        icon: "users",
+        section: "People",
         roles: ["Admin"],
       },
       {
         key: "customers",
         label: "Customers",
-        icon: "🎁",
+        icon: "customers",
+        section: "People",
         roles: ["Admin"],
       },
       {
         key: "settings",
         label: "Settings",
-        icon: "⚙️",
+        icon: "settings",
+        section: "Settings",
         roles: ["Admin"],
       },
       {
         key: "account",
         label: "My Account",
-        icon: "🔑",
+        icon: "account",
+        section: "Settings",
         roles: ["Admin", "Manager", "Cashier", "Store Keeper"],
       },
     ],
@@ -207,9 +236,27 @@ function App() {
     [menuItems]
   );
 
+  // Only Admin can switch between stores;
+  // every other role always works in its own store.
   const hasAllStoreAccess = useCallback((role) => {
     return role === "Admin";
   }, []);
+
+  const pickStoreId = useCallback(
+    (loggedInUser) => {
+      const ownStore = Number(loggedInUser?.store_id) || null;
+
+      if (!hasAllStoreAccess(loggedInUser?.role)) {
+        return ownStore;
+      }
+
+      return Number(localStorage.getItem("activeStoreId")) || ownStore;
+    },
+    [hasAllStoreAccess]
+  );
+
+  // AI chat is only for Admin and Manager
+  const canUseAi = user?.role === "Admin" || user?.role === "Manager";
 
   useEffect(() => {
     if (!isBrowser) {
@@ -247,14 +294,7 @@ function App() {
 
         setUser(loggedInUser);
 
-        const storedStoreId = Number(
-          localStorage.getItem("activeStoreId")
-        );
-
-        const initialStoreId =
-          storedStoreId ||
-          Number(loggedInUser.store_id) ||
-          null;
+        const initialStoreId = pickStoreId(loggedInUser);
 
         setActiveStoreId(initialStoreId);
 
@@ -290,7 +330,54 @@ function App() {
     };
 
     initAuth();
-  }, [getDefaultPageByRole]);
+  }, [getDefaultPageByRole, pickStoreId]);
+
+  // When the window gets focus again, re-check the account.
+  // Admin may have changed the role/store, or disabled/deleted the account.
+  useEffect(() => {
+    if (!user) {
+      return undefined;
+    }
+
+    const refreshUser = async () => {
+      try {
+        const res = await API.get("/api/auth/me");
+        const fresh = res.data;
+
+        if (
+          fresh.role !== user.role ||
+          Number(fresh.store_id) !== Number(user.store_id)
+        ) {
+          localStorage.setItem("user", JSON.stringify(fresh));
+          setUser(fresh);
+
+          if (!hasAllStoreAccess(fresh.role)) {
+            setActiveStoreId(Number(fresh.store_id) || null);
+          }
+        }
+      } catch (error) {
+        const status = error.response?.status;
+
+        if (status === 401 || status === 403) {
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          localStorage.removeItem("activeStoreId");
+          setUser(null);
+          setActiveStoreId(null);
+          setMessage(
+            error.response?.data?.message ||
+              "Please login again."
+          );
+        }
+      }
+    };
+
+    window.addEventListener("focus", refreshUser);
+
+    return () => {
+      window.removeEventListener("focus", refreshUser);
+    };
+  }, [user, hasAllStoreAccess]);
 
   useEffect(() => {
     if (!user) {
@@ -342,6 +429,18 @@ function App() {
   // Keep the active store in sync when it is switched anywhere.
   useEffect(() => {
     const syncStore = (event) => {
+      // Staff with a fixed store never switch
+      let savedUser = {};
+      try {
+        savedUser = JSON.parse(localStorage.getItem("user") || "{}");
+      } catch (error) {
+        savedUser = {};
+      }
+
+      if (!hasAllStoreAccess(savedUser.role)) {
+        return;
+      }
+
       const fromEvent = Number(event?.detail?.storeId);
       const fromStorage = Number(
         localStorage.getItem("activeStoreId")
@@ -360,7 +459,7 @@ function App() {
       window.removeEventListener("storeChanged", syncStore);
       window.removeEventListener("storage", syncStore);
     };
-  }, []);
+  }, [hasAllStoreAccess]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -549,7 +648,9 @@ function App() {
       <div className="login-shell">
         <div className="login-card">
           <section className="login-hero">
-            <div className="hero-badge">☁ Cloud POS</div>
+            <div className="hero-badge">
+              <Icon name="cloud" size={16} strokeWidth={2.2} /> Cloud POS
+            </div>
             <h1>Retail management that feels fast, clean and reliable</h1>
             <p>
               Track sales, inventory, stores, reports and users from one
@@ -558,21 +659,27 @@ function App() {
 
             <div className="hero-points">
               <div className="hero-point">
-                <span>⚡</span>
+                <span className="hero-point-icon">
+                  <Icon name="sales" size={20} />
+                </span>
                 <div>
                   <strong>Fast billing</strong>
                   <small>Quick POS workflow for daily sales operations.</small>
                 </div>
               </div>
               <div className="hero-point">
-                <span>📦</span>
+                <span className="hero-point-icon">
+                  <Icon name="products" size={20} />
+                </span>
                 <div>
                   <strong>Stock control</strong>
                   <small>Monitor products and inventory movement easily.</small>
                 </div>
               </div>
               <div className="hero-point">
-                <span>📊</span>
+                <span className="hero-point-icon">
+                  <Icon name="reports" size={20} />
+                </span>
                 <div>
                   <strong>Smart reports</strong>
                   <small>See business performance in a structured way.</small>
@@ -646,7 +753,7 @@ function App() {
                     "transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease",
                 }}
               >
-                <span aria-hidden="true">🎁</span>
+                <Icon name="customers" size={18} />
                 <span>Customer Loyalty Login / Register</span>
               </button>
             </form>
@@ -696,7 +803,9 @@ function App() {
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="sidebar-top">
           <div className="brand">
-            <div className="brand-mark">☁</div>
+            <div className="brand-mark">
+              <Icon name="cloud" size={24} strokeWidth={2.2} />
+            </div>
             <div>
               <h2>Cloud POS</h2>
               <p>Retail Control Panel</p>
@@ -710,25 +819,40 @@ function App() {
               aria-label="Close sidebar"
               type="button"
             >
-              ✕
+              <Icon name="close" size={18} />
             </button>
           )}
         </div>
 
         <nav className="sidebar-nav">
-          {menuItems
-            .filter((item) => item.roles.includes(user.role))
-            .map((item) => (
-              <button
-                key={item.key}
-                className={`nav-btn ${page === item.key ? "active" : ""}`}
-                onClick={() => goToPage(item.key)}
-                type="button"
-              >
-                <span className="nav-icon">{item.icon}</span>
-                <span>{item.label}</span>
-              </button>
-            ))}
+          {NAV_SECTIONS.map((section) => {
+            const items = menuItems.filter(
+              (item) => item.section === section && item.roles.includes(user.role)
+            );
+
+            if (items.length === 0) {
+              return null;
+            }
+
+            return (
+              <div className="nav-group" key={section}>
+                <div className="nav-section">{section}</div>
+                {items.map((item) => (
+                  <button
+                    key={item.key}
+                    className={`nav-btn ${page === item.key ? "active" : ""}`}
+                    onClick={() => goToPage(item.key)}
+                    type="button"
+                  >
+                    <span className="nav-icon">
+                      <Icon name={item.icon} size={18} />
+                    </span>
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            );
+          })}
         </nav>
 
         <div className="sidebar-footer">
@@ -748,7 +872,8 @@ function App() {
           </div>
 
           <button className="logout-btn" onClick={logout} type="button">
-            🚪 Logout
+            <Icon name="logout" size={17} />
+            <span>Logout</span>
           </button>
         </div>
       </aside>
@@ -763,13 +888,13 @@ function App() {
                 aria-label="Open sidebar"
                 type="button"
               >
-                ☰
+                <Icon name="menu" size={20} />
               </button>
             )}
 
             <div>
               <h1>{pageTitle}</h1>
-              <p>Cloud POS & Inventory Management System</p>
+              <p>{todayLabel()}</p>
             </div>
           </div>
 
@@ -790,9 +915,12 @@ function App() {
           {renderPage()}
         </section>
       </main>
-            <AiWidget user={user} activeStoreId={activeStoreId} />
+
+      {canUseAi && (
+        <AiWidget user={user} activeStoreId={activeStoreId} />
+      )}
     </div>
   );
 }
 
-export default App;
+export default App;

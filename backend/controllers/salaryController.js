@@ -1,5 +1,5 @@
 const db = require("../config/db");
-const { calculateSalary } = require("../config/salaryRules");
+const { calculateSalary, isMonthFinished } = require("../config/salaryRules");
 const { accountLabel, makeTxnRef } = require("../config/payout");
 
 // Salary is Admin-only (enforced in the route). Admin sees all stores.
@@ -22,6 +22,7 @@ const loadStaffForMonth = async (year, month, storeId) => {
       sa.bank_name  AS pay_bank_name,
       (SELECT COUNT(*) FROM staff_accounts sp2
         WHERE sp2.user_id = u.id AND sp2.status = 'Pending') AS pending_change,
+      IFNULL(SUM(a.status = 'Present'), 0) AS present_days,
       IFNULL(SUM(a.status = 'Late'), 0)   AS late_days,
       IFNULL(SUM(a.status = 'Absent'), 0) AS absent_days
     FROM users u
@@ -33,6 +34,7 @@ const loadStaffForMonth = async (year, month, storeId) => {
       AND YEAR(a.date) = ?
       AND MONTH(a.date) = ?
     WHERE (u.status IS NULL OR u.status = 'Active')
+      AND u.role <> 'Admin'
   `;
   const params = [year, month];
 
@@ -62,6 +64,27 @@ const payoutOf = (s) => {
   };
 };
 
+// Month label like "9/2026" and the first day it can be paid
+const payableFrom = (year, month) => {
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextYear = month === 12 ? year + 1 : year;
+  return `1/${nextMonth}/${nextYear}`;
+};
+
+// Why this staff member cannot be paid (null = can be paid)
+const blockReason = (s, year, month) => {
+  if (!isMonthFinished(year, month)) {
+    return `Month not finished. Pay from ${payableFrom(year, month)}.`;
+  }
+  if (!(Number(s.salary) > 0)) {
+    return "Set a monthly salary first.";
+  }
+  return null;
+};
+
+const calcFor = (s) =>
+  calculateSalary(s.salary, s.absent_days, s.late_days, s.present_days);
+
 // ========================================
 // PUT /api/salary/user/:id
 // body: { salary }
@@ -71,14 +94,14 @@ exports.setUserSalary = async (req, res) => {
   try {
     const { salary } = req.body;
 
-    if (salary == null || Number(salary) < 0) {
+    if (salary == null || salary === "" || !Number.isFinite(Number(salary)) || Number(salary) < 0) {
       return res
         .status(400)
         .json({ success: false, message: "A valid salary is required." });
     }
 
     const [result] = await db.query(
-      "UPDATE users SET salary = ? WHERE id = ?",
+      "UPDATE users SET salary = ? WHERE id = ? AND role <> 'Admin'",
       [Number(salary), req.params.id]
     );
 
@@ -119,7 +142,9 @@ exports.getPreview = async (req, res) => {
     const paidSet = new Set(paidRows.map((r) => r.user_id));
 
     const list = staff.map((s) => {
-      const calc = calculateSalary(s.salary, s.absent_days, s.late_days);
+      const calc = calcFor(s);
+      const alreadyPaid = paidSet.has(s.user_id);
+      const reason = alreadyPaid ? null : blockReason(s, year, month);
       return {
         user_id: s.user_id,
         name: s.name,
@@ -127,7 +152,10 @@ exports.getPreview = async (req, res) => {
         store_id: s.store_id,
         store_name: s.store_name,
         ...calc,
-        already_paid: paidSet.has(s.user_id),
+        present_days: Number(s.present_days) || 0,
+        already_paid: alreadyPaid,
+        can_pay: !alreadyPaid && !reason,
+        block_reason: reason,
         payout: (() => {
           const p = payoutOf(s);
           return {
@@ -142,13 +170,15 @@ exports.getPreview = async (req, res) => {
     });
 
     const totalPayable = list
-      .filter((s) => !s.already_paid)
+      .filter((s) => s.can_pay)
       .reduce((sum, s) => sum + s.net_paid, 0);
 
     return res.json({
       success: true,
       year,
       month,
+      month_finished: isMonthFinished(year, month),
+      payable_from: payableFrom(year, month),
       total_unpaid_payable: round2(totalPayable),
       staff: list,
     });
@@ -184,7 +214,13 @@ const payStaff = async (staffRows, year, month, paidBy) => {
         continue;
       }
 
-      const calc = calculateSalary(s.salary, s.absent_days, s.late_days);
+      const reason = blockReason(s, year, month);
+      if (reason) {
+        skipped.push({ user_id: s.user_id, name: s.name, reason });
+        continue;
+      }
+
+      const calc = calcFor(s);
       const payout = payoutOf(s);
       const isDemo = payout.method !== "Cash" ? 1 : 0;
 
@@ -280,6 +316,13 @@ exports.payAll = async (req, res) => {
     const month = Number(req.body.month) || now.getMonth() + 1;
     const storeId = req.body.store_id;
 
+    if (!isMonthFinished(year, month)) {
+      return res.status(400).json({
+        success: false,
+        message: `${month}/${year} is not finished yet. Salary can be paid from ${payableFrom(year, month)}.`,
+      });
+    }
+
     const staff = await loadStaffForMonth(year, month, storeId);
 
     if (staff.length === 0) {
@@ -320,6 +363,13 @@ exports.payOne = async (req, res) => {
     const month = Number(req.body.month) || now.getMonth() + 1;
     const userId = Number(req.params.userId);
 
+    if (!isMonthFinished(year, month)) {
+      return res.status(400).json({
+        success: false,
+        message: `${month}/${year} is not finished yet. Salary can be paid from ${payableFrom(year, month)}.`,
+      });
+    }
+
     const staff = await loadStaffForMonth(year, month, null);
     const target = staff.find((s) => Number(s.user_id) === userId);
 
@@ -335,7 +385,7 @@ exports.payOne = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: skipped[0]?.reason
-          ? `Not paid: ${skipped[0].reason}.`
+          ? `Not paid: ${skipped[0].reason}`
           : "Nothing was paid.",
       });
     }

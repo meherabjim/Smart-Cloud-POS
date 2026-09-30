@@ -3,6 +3,8 @@ import axios from "axios";
 import API_BASE_URL from "../apiConfig";
 import { loadHuman, getFaceDescriptor, cosine } from "../faceClient";
 import "./AttendanceCamera.css";
+import Icon from "../components/Icon";
+import { toast } from "../components/Toast";
 
 // ---- Tunable settings ----
 const SHIFT_START_HOUR = 9;      // shop opens 9:00
@@ -13,7 +15,8 @@ const MATCH_MARGIN = 0.06;       // best must beat 2nd best by this much
 const COOLDOWN_MS = 60000;       // don't re-mark same person within 1 min
 const SCAN_EVERY_MS = 900;       // how often to scan a frame
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
+// Local date (not UTC) as YYYY-MM-DD
+const todayStr = () => new Date().toLocaleDateString("en-CA");
 
 // "14:20:47" -> "2:20 PM"
 const fmtTime = (t) => {
@@ -26,9 +29,17 @@ const fmtTime = (t) => {
   return `${h}:${m} ${ampm}`;
 };
 
+const initials = (name) =>
+  String(name || "?")
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
+
 function AttendanceCamera({ user, activeStoreId }) {
-  const storeId =
-    activeStoreId || Number(localStorage.getItem("activeStoreId")) || 1;
+  const storeId = activeStoreId || Number(localStorage.getItem("activeStoreId")) || 1;
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -36,23 +47,25 @@ function AttendanceCamera({ user, activeStoreId }) {
   const streamRef = useRef(null);
   const timerRef = useRef(null);
   const busyRef = useRef(false);
+  const mountedRef = useRef(true);
+  const autoStartedRef = useRef(false);
   const cooldownRef = useRef({}); // user_id -> last mark time
   const markedTodayRef = useRef(new Set()); // user_ids already marked today
 
   const [known, setKnown] = useState([]); // [{user_id,name,descriptors}]
   const [modelLoading, setModelLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [status, setStatus] = useState("");
   const [lastMark, setLastMark] = useState(null); // {name,status}
-  const [today, setToday] = useState([]); // marked list
+  const [today, setToday] = useState([]); // staff list for today
 
-  // Load this store's registered faces + models + today's list.
+  // Load this store's registered faces.
   const loadKnown = useCallback(async () => {
     try {
-      const res = await axios.get(
-        `${API_BASE_URL}/api/face/store-descriptors?store_id=${storeId}`,
-        { headers }
-      );
+      const res = await axios.get(`${API_BASE_URL}/api/face/store-descriptors?store_id=${storeId}`, {
+        headers,
+      });
       setKnown(res.data.staff || []);
     } catch (err) {
       setStatus(err.response?.data?.message || "Failed to load staff faces.");
@@ -62,10 +75,9 @@ function AttendanceCamera({ user, activeStoreId }) {
 
   const loadToday = useCallback(async () => {
     try {
-      const res = await axios.get(
-        `${API_BASE_URL}/api/attendance?date=${todayStr()}&store_id=${storeId}`,
-        { headers }
-      );
+      const res = await axios.get(`${API_BASE_URL}/api/attendance?date=${todayStr()}&store_id=${storeId}`, {
+        headers,
+      });
       setToday(res.data.staff || []);
     } catch (err) {
       // ignore
@@ -74,9 +86,17 @@ function AttendanceCamera({ user, activeStoreId }) {
   }, [storeId]);
 
   useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
     loadHuman()
-      .then(() => setModelLoading(false))
+      .then(() => mountedRef.current && setModelLoading(false))
       .catch(() => {
+        if (!mountedRef.current) return;
         setModelLoading(false);
         setStatus("Face model failed to load. Check internet and reload.");
       });
@@ -104,7 +124,7 @@ function AttendanceCamera({ user, activeStoreId }) {
     async (matched) => {
       // Already marked today → keep the FIRST mark, don't overwrite the time.
       if (markedTodayRef.current.has(matched.user_id)) {
-        setLastMark({ name: `${matched.name} — already marked`, status: "already" });
+        setLastMark({ name: `${matched.name} — already marked today`, status: "already" });
         return;
       }
 
@@ -122,6 +142,7 @@ function AttendanceCamera({ user, activeStoreId }) {
             date: todayStr(),
             status: st,
             check_in_time: new Date().toTimeString().slice(0, 8),
+            source: "face",
           },
           { headers }
         );
@@ -163,20 +184,16 @@ function AttendanceCamera({ user, activeStoreId }) {
           }
         }
         const scoreTxt = bestScore.toFixed(2);
-        if (
-          best &&
-          bestScore >= MATCH_THRESHOLD &&
-          bestScore - secondScore >= MATCH_MARGIN
-        ) {
+        if (best && bestScore >= MATCH_THRESHOLD && bestScore - secondScore >= MATCH_MARGIN) {
           markPresent(best);
         } else {
           setLastMark({
-            name: best ? `Not sure: ${best.name}? (${scoreTxt})` : "No match",
+            name: best ? `Not sure — ${best.name}? (${scoreTxt})` : "Face not recognised",
             status: "none",
           });
         }
       } else if (found) {
-        setLastMark({ name: "No staff registered here", status: "none" });
+        setLastMark({ name: "No staff face registered in this store", status: "none" });
       }
     } catch (e) {
       // ignore per-frame errors
@@ -184,25 +201,6 @@ function AttendanceCamera({ user, activeStoreId }) {
       busyRef.current = false;
     }
   }, [known, markPresent]);
-
-  const start = async () => {
-    setStatus("");
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480, facingMode: "user" },
-        audio: false,
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      setRunning(true);
-      timerRef.current = setInterval(scanOnce, SCAN_EVERY_MS);
-    } catch (err) {
-      setStatus("Camera could not be opened. Allow camera access.");
-    }
-  };
 
   const stop = useCallback(() => {
     if (timerRef.current) {
@@ -213,21 +211,67 @@ function AttendanceCamera({ user, activeStoreId }) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
+    if (videoRef.current) videoRef.current.srcObject = null;
     setRunning(false);
+    setLastMark(null);
   }, []);
 
-  // Restart the scan loop if `known` changes while running.
-  useEffect(() => {
-    if (running) {
-      if (timerRef.current) clearInterval(timerRef.current);
-      timerRef.current = setInterval(scanOnce, SCAN_EVERY_MS);
+  const start = useCallback(async () => {
+    if (streamRef.current) return;
+    setStatus("");
+    setStarting(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480, facingMode: "user" },
+        audio: false,
+      });
+      // Page was closed while the browser was asking for the camera
+      if (!mountedRef.current) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play().catch(() => {});
+      }
+      setRunning(true);
+    } catch (err) {
+      if (mountedRef.current) {
+        setStatus(
+          err?.name === "NotAllowedError"
+            ? "Camera permission was blocked. Allow camera access in the browser and turn the camera on again."
+            : "Camera could not be opened. Check that no other app is using it."
+        );
+      }
+    } finally {
+      if (mountedRef.current) setStarting(false);
     }
+  }, []);
+
+  // Opening the page from the sidebar turns the camera on automatically
+  // (once the face model is ready). The user can switch it off/on any time.
+  useEffect(() => {
+    if (!modelLoading && !autoStartedRef.current) {
+      autoStartedRef.current = true;
+      start();
+    }
+  }, [modelLoading, start]);
+
+  // Run the scan loop while the camera is on (restarts if `known` changes).
+  useEffect(() => {
+    if (!running) return undefined;
+    timerRef.current = setInterval(scanOnce, SCAN_EVERY_MS);
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = null;
     };
   }, [running, scanOnce]);
 
+  // Leaving the page always turns the camera off
   useEffect(() => stop, [stop]);
+
+  const toggleCamera = () => (running ? stop() : start());
 
   const closeDay = async () => {
     if (!window.confirm("Mark everyone who didn't come today as Absent?")) return;
@@ -237,121 +281,238 @@ function AttendanceCamera({ user, activeStoreId }) {
         { date: todayStr(), store_id: storeId },
         { headers }
       );
-      alert(res.data.message || "Day closed.");
+      toast.success(res.data.message || "Day closed.");
       loadToday();
     } catch (err) {
-      alert(err.response?.data?.message || "Close day failed.");
+      toast.error(err.response?.data?.message || "Close day failed.");
     }
   };
 
+  const reloadFaces = async () => {
+    await loadKnown();
+    toast.info("Staff faces reloaded.");
+  };
+
   const markedList = today.filter((s) => s.status);
+  const count = (st) => today.filter((s) => s.status === st).length;
+  const presentCount = count("Present");
+  const lateCount = count("Late");
+  const absentCount = count("Absent");
+  const notYet = today.filter((s) => !s.status).length;
+
+  const camState = modelLoading ? "loading" : starting ? "starting" : running ? "on" : "off";
+  const resultClass = lastMark
+    ? lastMark.status === "none"
+      ? "bad"
+      : lastMark.status === "already"
+      ? "info"
+      : lastMark.status === "Late"
+      ? "late"
+      : "good"
+    : "";
 
   return (
     <div className="cam-page">
+      {/* ---------- Header ---------- */}
       <div className="cam-header">
-        <div>
-          <h2>📷 Attendance Camera</h2>
-          <p>
-            Store #{storeId} • Stand in front of the camera to mark attendance.
-            Registered staff of this store only.
-          </p>
+        <div className="cam-header-left">
+          <span className="cam-header-icon">
+            <Icon name="camera" size={21} />
+          </span>
+          <div>
+            <h2>Attendance Camera</h2>
+            <p>Stand in front of the camera to mark attendance. Only registered staff of this store are recognised.</p>
+          </div>
         </div>
-        <div className="cam-store-badge">
-          <span>Store</span>
-          <strong>#{storeId}</strong>
+        <div className="cam-header-right">
+          <span className="cam-chip">
+            <Icon name="stores" size={14} />
+            Store #{storeId}
+          </span>
+          <span className="cam-chip">
+            <Icon name="attendance" size={14} />
+            Late after {SHIFT_START_HOUR}:{String(SHIFT_START_MINUTE + GRACE_MINUTES).padStart(2, "0")} AM
+          </span>
         </div>
       </div>
 
       <div className="cam-grid">
-        <div className="cam-card">
-          <div className="cam-video-wrap">
+        {/* ---------- Camera ---------- */}
+        <section className="cam-card cam-camera-card">
+          <div className="cam-card-head">
+            <h3 className="cam-card-title">
+              <span className={`cam-dot ${camState}`} />
+              {camState === "on"
+                ? "Camera is on — scanning"
+                : camState === "starting"
+                ? "Opening camera…"
+                : camState === "loading"
+                ? "Loading face model…"
+                : "Camera is off"}
+            </h3>
+
+            <label className={`cam-switch ${modelLoading || starting ? "disabled" : ""}`}>
+              <span className="cam-switch-label">{running ? "On" : "Off"}</span>
+              <input
+                type="checkbox"
+                checked={running}
+                onChange={toggleCamera}
+                disabled={modelLoading || starting}
+                aria-label="Camera on or off"
+              />
+              <span className="cam-switch-track">
+                <span className="cam-switch-thumb" />
+              </span>
+            </label>
+          </div>
+
+          <div className={`cam-video-wrap ${running ? "live" : ""}`}>
             <video ref={videoRef} className="cam-video" playsInline muted />
+
+            {running && (
+              <>
+                <span className="cam-live">
+                  <i /> LIVE
+                </span>
+                <div className="cam-frame" aria-hidden="true">
+                  <span className="c tl" />
+                  <span className="c tr" />
+                  <span className="c bl" />
+                  <span className="c br" />
+                  <span className="cam-scanline" />
+                </div>
+              </>
+            )}
+
             {!running && (
               <div className="cam-overlay">
-                {modelLoading ? "Loading face model…" : "Camera is off"}
+                {camState === "loading" || camState === "starting" ? (
+                  <span className="cam-spinner" />
+                ) : (
+                  <span className="cam-overlay-icon">
+                    <Icon name="camera" size={28} />
+                  </span>
+                )}
+                <strong>
+                  {camState === "loading"
+                    ? "Loading face model…"
+                    : camState === "starting"
+                    ? "Opening camera…"
+                    : "Camera is off"}
+                </strong>
+                {camState === "off" && (
+                  <button type="button" className="cam-btn primary" onClick={start}>
+                    <Icon name="camera" size={16} />
+                    Turn camera on
+                  </button>
+                )}
               </div>
             )}
+
             {lastMark && running && (
-              <div
-                className={`cam-result ${
-                  lastMark.status === "none"
-                    ? "bad"
-                    : lastMark.status === "already"
-                    ? "info"
-                    : "good"
-                }`}
-              >
-                {lastMark.status === "none"
-                  ? "❌ " + lastMark.name
-                  : lastMark.status === "already"
-                  ? "ℹ " + lastMark.name
-                  : `✔ ${lastMark.name} — ${lastMark.status}`}
+              <div className={`cam-result ${resultClass}`}>
+                <Icon
+                  name={lastMark.status === "none" ? "alert" : lastMark.status === "already" ? "info" : "check"}
+                  size={18}
+                  strokeWidth={2.4}
+                />
+                <span>
+                  {lastMark.status === "none" || lastMark.status === "already"
+                    ? lastMark.name
+                    : `${lastMark.name} — ${lastMark.status}`}
+                </span>
               </div>
             )}
           </div>
 
           <div className="cam-actions">
-            {!running ? (
-              <button
-                className="cam-btn start"
-                onClick={start}
-                disabled={modelLoading}
-              >
-                ▶ Start Camera
-              </button>
-            ) : (
-              <button className="cam-btn stop" onClick={stop}>
-                ⏹ Stop Camera
-              </button>
-            )}
-
-            <button className="cam-btn refresh" onClick={loadKnown}>
-              ↻ Reload Faces ({known.length})
+            <button type="button" className="cam-btn ghost" onClick={reloadFaces}>
+              <Icon name="refresh" size={15} />
+              Reload faces
+              <span className="cam-count">{known.length}</span>
             </button>
-
-            <button className="cam-btn close" onClick={closeDay}>
-              🌙 Close Day (mark absentees)
+            <button type="button" className="cam-btn warn" onClick={closeDay}>
+              <Icon name="attendance" size={15} />
+              Close day (mark absentees)
             </button>
           </div>
 
-          {status && <div className="cam-status">{status}</div>}
-        </div>
+          {status && (
+            <div className="cam-status">
+              <Icon name="alert" size={16} />
+              <span>{status}</span>
+            </div>
+          )}
+        </section>
 
-        <div className="cam-card">
-          <h3 className="cam-list-title">Today — {todayStr()}</h3>
+        {/* ---------- Today ---------- */}
+        <section className="cam-card">
+          <div className="cam-card-head">
+            <h3 className="cam-card-title">
+              <Icon name="users" size={17} className="cam-title-icon" />
+              Today
+              <span className="cam-date">{todayStr()}</span>
+            </h3>
+          </div>
+
+          <div className="cam-stats">
+            <div className="cam-stat present">
+              <span>Present</span>
+              <strong>{presentCount}</strong>
+            </div>
+            <div className="cam-stat late">
+              <span>Late</span>
+              <strong>{lateCount}</strong>
+            </div>
+            <div className="cam-stat absent">
+              <span>Absent</span>
+              <strong>{absentCount}</strong>
+            </div>
+            <div className="cam-stat waiting">
+              <span>Not yet</span>
+              <strong>{notYet}</strong>
+            </div>
+          </div>
+
           <div className="cam-list-wrap">
             <table className="cam-table">
               <thead>
                 <tr>
                   <th>Staff</th>
                   <th>Status</th>
-                  <th>Time</th>
+                  <th className="right">Time</th>
                 </tr>
               </thead>
               <tbody>
                 {markedList.length === 0 ? (
                   <tr>
                     <td colSpan="3" className="cam-empty">
+                      <span className="cam-empty-icon">
+                        <Icon name="attendance" size={20} />
+                      </span>
                       No one marked yet today.
                     </td>
                   </tr>
                 ) : (
                   markedList.map((s) => (
                     <tr key={s.user_id}>
-                      <td className="cam-bold">{s.name}</td>
                       <td>
-                        <span className={`cam-badge ${String(s.status).toLowerCase()}`}>
-                          {s.status}
-                        </span>
+                        <div className="cam-person">
+                          <span className="cam-avatar">{initials(s.name)}</span>
+                          <span className="cam-bold">{s.name}</span>
+                        </div>
                       </td>
-                      <td>{fmtTime(s.check_in_time)}</td>
+                      <td>
+                        <span className={`cam-badge ${String(s.status).toLowerCase()}`}>{s.status}</span>
+                      </td>
+                      <td className="right cam-time">{fmtTime(s.check_in_time)}</td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );

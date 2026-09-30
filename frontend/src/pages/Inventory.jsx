@@ -3,6 +3,7 @@ import axios from "axios";
 import API_BASE_URL from "../apiConfig";
 import InventoryHistory from "./InventoryHistory";
 import "./Inventory.css";
+import { toast } from "../components/Toast";
 
 const API = axios.create({
   baseURL: `${API_BASE_URL}/api/products`,
@@ -85,7 +86,7 @@ function Inventory() {
   const stockIn = async (id, currentStock, qty) => {
     const quantity = Number(qty);
     if (isNaN(quantity) || quantity <= 0) {
-      alert("Enter valid quantity");
+      toast("Enter valid quantity");
       return;
     }
 
@@ -96,19 +97,19 @@ function Inventory() {
       loadInventory();
     } catch (err) {
       console.log(err);
-      alert(err.response?.data?.message || "Stock In Failed");
+      toast(err.response?.data?.message || "Stock In Failed");
     }
   };
 
   const stockOut = async (id, currentStock, qty) => {
     const quantity = Number(qty);
     if (isNaN(quantity) || quantity <= 0) {
-      alert("Enter valid quantity");
+      toast("Enter valid quantity");
       return;
     }
 
     if (quantity > Number(currentStock)) {
-      alert("Not enough stock");
+      toast("Not enough stock");
       return;
     }
 
@@ -119,7 +120,7 @@ function Inventory() {
       loadInventory();
     } catch (err) {
       console.log(err);
-      alert(err.response?.data?.message || "Stock Out Failed");
+      toast(err.response?.data?.message || "Stock Out Failed");
     }
   };
 
@@ -131,7 +132,7 @@ function Inventory() {
       loadInventory();
     } catch (err) {
       console.log(err);
-      alert(err.response?.data?.message || "Update Failed");
+      toast(err.response?.data?.message || "Update Failed");
     }
   };
 
@@ -314,4 +315,4 @@ function Inventory() {
   );
 }
 
-export default Inventory;
+export default Inventory;

@@ -1,6 +1,7 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const db = require("../config/db");
+const catalog = require("../config/customerCatalog");
 
 // ========================================
 // Bangladesh phone number normalization
@@ -221,7 +222,7 @@ exports.loginCustomer = async (req, res) => {
       return res.status(401).json({
         success: false,
         message:
-          "Customer account not found.",
+          "Phone/email or password is incorrect.",
       });
     }
 
@@ -245,7 +246,7 @@ exports.loginCustomer = async (req, res) => {
       return res.status(401).json({
         success: false,
         message:
-          "Incorrect password.",
+          "Phone/email or password is incorrect.",
       });
     }
 
@@ -508,269 +509,78 @@ exports.getCustomerByPhone = async (
     });
   }
 };
+
 // ========================================
-// Customer: discounted products
+// Customer catalog (grouped by product name)
+// No barcode, no cost price, no exact stock.
+// ========================================
+
 // GET /api/customers/products/discounted
-// ========================================
-
-exports.getDiscountedProducts = async (
-  req,
-  res
-) => {
+exports.getDiscountedProducts = async (req, res) => {
   try {
-    const [rows] = await db.query(
-      `
-      SELECT
-        p.id,
-        p.store_id,
-        s.name AS store_name,
-        s.location AS store_location,
-        p.name,
-        p.barcode,
-        p.category,
-        p.selling_price,
-        p.discount_percent,
-        p.stock,
-        p.status,
-
-        ROUND(
-          p.selling_price -
-          (
-            p.selling_price *
-            p.discount_percent / 100
-          ),
-          2
-        ) AS discounted_price
-
-      FROM products p
-
-      LEFT JOIN stores s
-        ON s.id = p.store_id
-
-      WHERE
-        p.status = 'Active'
-        AND p.stock > 0
-        AND p.discount_percent > 0
-
-      ORDER BY
-        p.discount_percent DESC,
-        p.name ASC
-      `
-    );
-
-    return res.json({
-      success: true,
-      products: rows.map((product) => ({
-        ...product,
-        selling_price:
-          Number(product.selling_price) || 0,
-
-        discount_percent:
-          Number(product.discount_percent) || 0,
-
-        discounted_price:
-          Number(product.discounted_price) || 0,
-
-        stock:
-          Number(product.stock) || 0,
-      })),
-    });
+    const rows = await catalog.findProducts({ discountedOnly: true });
+    const groups = catalog.groupByName(rows).sort((a, b) => b.max_discount - a.max_discount);
+    return res.json({ success: true, groups });
   } catch (error) {
-    console.error(
-      "Discounted Products Error:",
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        error.message ||
-        "Failed to load discounted products.",
-    });
+    console.error("Discounted Products Error:", error);
+    return res.status(500).json({ success: false, message: "Failed to load offers." });
   }
 };
 
-// ========================================
-// Customer: all available products
-// GET /api/customers/products
-// Optional: ?store_id=1&search=rice
-// ========================================
-
-exports.getCustomerProducts = async (
-  req,
-  res
-) => {
+// GET /api/customers/products?search=&store_id=
+exports.getCustomerProducts = async (req, res) => {
   try {
-    const {
-      store_id,
-      search,
-    } = req.query;
-
-    let sql = `
-      SELECT
-        p.id,
-        p.store_id,
-        s.name AS store_name,
-        s.location AS store_location,
-        p.name,
-        p.barcode,
-        p.category,
-        p.selling_price,
-        p.discount_percent,
-        p.stock,
-        p.status,
-
-        ROUND(
-          p.selling_price -
-          (
-            p.selling_price *
-            p.discount_percent / 100
-          ),
-          2
-        ) AS final_price
-
-      FROM products p
-
-      LEFT JOIN stores s
-        ON s.id = p.store_id
-
-      WHERE
-        p.status = 'Active'
-        AND p.stock > 0
-    `;
-
-    const params = [];
-
-    if (store_id) {
-      sql += ` AND p.store_id = ?`;
-      params.push(Number(store_id));
-    }
-
-    if (search) {
-      sql += `
-        AND (
-          p.name LIKE ?
-          OR p.category LIKE ?
-          OR p.barcode LIKE ?
-          OR s.name LIKE ?
-        )
-      `;
-
-      const keyword =
-        `%${String(search).trim()}%`;
-
-      params.push(
-        keyword,
-        keyword,
-        keyword,
-        keyword
-      );
-    }
-
-    sql += `
-      ORDER BY
-        s.name ASC,
-        p.name ASC
-    `;
-
-    const [rows] = await db.query(
-      sql,
-      params
-    );
-
-    return res.json({
-      success: true,
-      products: rows.map((product) => ({
-        ...product,
-        selling_price:
-          Number(product.selling_price) || 0,
-
-        discount_percent:
-          Number(product.discount_percent) || 0,
-
-        final_price:
-          Number(product.final_price) || 0,
-
-        stock:
-          Number(product.stock) || 0,
-      })),
+    const rows = await catalog.findProducts({
+      search: String(req.query.search || "").slice(0, 60),
+      storeId: Number(req.query.store_id) || null,
     });
+    return res.json({ success: true, groups: catalog.groupByName(rows) });
   } catch (error) {
-    console.error(
-      "Customer Products Error:",
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        error.message ||
-        "Failed to load products.",
-    });
+    console.error("Customer Products Error:", error);
+    return res.status(500).json({ success: false, message: "Failed to load products." });
   }
 };
 
-// ========================================
-// Customer: available stores
 // GET /api/customers/stores
-// ========================================
-
-exports.getCustomerStores = async (
-  req,
-  res
-) => {
+exports.getCustomerStores = async (req, res) => {
   try {
-    const [rows] = await db.query(
-      `
-      SELECT
-        s.id,
-        s.name,
-        s.location,
-        COUNT(p.id) AS available_products
-
-      FROM stores s
-
-      LEFT JOIN products p
-        ON p.store_id = s.id
-        AND p.status = 'Active'
-        AND p.stock > 0
-
-      GROUP BY
-        s.id,
-        s.name,
-        s.location
-
-      ORDER BY s.name ASC
-      `
-    );
-
-    return res.json({
-      success: true,
-      stores: rows.map((store) => ({
-        ...store,
-        available_products:
-          Number(
-            store.available_products
-          ) || 0,
-      })),
-    });
+    return res.json({ success: true, stores: await catalog.getStores() });
   } catch (error) {
-    console.error(
-      "Customer Stores Error:",
-      error
-    );
+    console.error("Customer Stores Error:", error);
+    return res.status(500).json({ success: false, message: "Failed to load stores." });
+  }
+};
 
-    return res.status(500).json({
-      success: false,
-      message:
-        error.message ||
-        "Failed to load stores.",
-    });
+// GET /api/customers/stores/:id/products
+exports.getStoreProducts = async (req, res) => {
+  try {
+    const storeId = Number(req.params.id);
+    const store = (await catalog.getStores()).find((s) => s.id === storeId);
+    if (!store) return res.status(404).json({ success: false, message: "Store not found." });
+
+    const products = await catalog.findProducts({ storeId });
+    products.sort((a, b) => (a.stock_status === "out") - (b.stock_status === "out") || a.name.localeCompare(b.name));
+    return res.json({ success: true, store, products });
+  } catch (error) {
+    console.error("Store Products Error:", error);
+    return res.status(500).json({ success: false, message: "Failed to load store." });
+  }
+};
+
+// GET /api/customers/purchases
+exports.getMyPurchases = async (req, res) => {
+  try {
+    const purchases = await catalog.getMyPurchases(req.customer.id, { limit: 50 });
+    return res.json({ success: true, purchases });
+  } catch (error) {
+    console.error("My Purchases Error:", error);
+    return res.status(500).json({ success: false, message: "Failed to load purchases." });
   }
 };
 
 exports.normalizePhone = normalizePhone;
 exports.isValidPhone = isValidPhone;
+
 // ========================================
 // ADMIN ONLY: all customers
 // GET /api/customers/admin/all?search=&store_id=

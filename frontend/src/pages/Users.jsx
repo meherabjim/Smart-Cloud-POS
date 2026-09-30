@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import API_BASE_URL from "../apiConfig";
 import "./Users.css";
+import { toast } from "../components/Toast";
 
 // ADMIN ONLY: every worker in every store, with store name,
 // this month's attendance (present / late / absent / leave),
@@ -22,6 +23,11 @@ function Users() {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [search, setSearch] = useState("");
+
+  // edit role/store: { id, role, store_id } while a row is being edited
+  const [editing, setEditing] = useState(null);
+  // pairs of accounts that hold the same person's face
+  const [dupes, setDupes] = useState([]);
 
   // add form
   const [name, setName] = useState("");
@@ -45,8 +51,12 @@ function Users() {
         config
       );
       setUsers(Array.isArray(res.data) ? res.data : []);
+      axios
+        .get(`${API_BASE_URL}/api/face/duplicates`, config)
+        .then((r) => setDupes(r.data.pairs || []))
+        .catch(() => setDupes([]));
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to load workers");
+      toast(err.response?.data?.message || "Failed to load workers");
       setUsers([]);
     } finally {
       setLoading(false);
@@ -60,7 +70,7 @@ function Users() {
   const handleAddUser = async (e) => {
     e.preventDefault();
     if (!name || !email || !role || !password) {
-      alert("Please fill up all required fields!");
+      toast("Please fill up all required fields!");
       return;
     }
     try {
@@ -69,40 +79,65 @@ function Users() {
         { name, email, role, password, store_id: Number(newStore) },
         config
       );
-      alert(res.data?.message || "User added successfully!");
+      toast(res.data?.message || "User added successfully!");
       setName("");
       setEmail("");
       setPassword("");
       setRole("Cashier");
       fetchUsers();
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to add user.");
+      toast(err.response?.data?.message || "Failed to add user.");
     }
   };
 
   const handleDeleteUser = async (userId) => {
     if (parseInt(userId, 10) === 1 || parseInt(userId, 10) === 2) {
-      alert("Main admin cannot be deleted for system safety!");
+      toast("Main admin cannot be deleted for system safety!");
       return;
     }
     if (!window.confirm("Are you sure you want to delete this staff member?")) return;
     try {
       const res = await axios.delete(`${API_BASE_URL}/api/users/${userId}`, config);
-      alert(res.data?.message || "User deleted.");
+      toast(res.data?.message || "User deleted.");
       fetchUsers();
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to delete user");
+      toast(err.response?.data?.message || "Failed to delete user");
     }
   };
+
+  const handleSaveEdit = async () => {
+    try {
+      const res = await axios.put(
+        `${API_BASE_URL}/api/users/${editing.id}`,
+        { role: editing.role, store_id: Number(editing.store_id) },
+        config
+      );
+      toast(res.data?.message || "Worker updated.");
+      setEditing(null);
+      fetchUsers();
+    } catch (err) {
+      toast(err.response?.data?.message || "Failed to update worker");
+    }
+  };
+
+  // user id -> names of other accounts with the same face
+  const dupMap = useMemo(() => {
+    const map = {};
+    dupes.forEach(({ a, b }) => {
+      (map[a.id] = map[a.id] || []).push(`${b.name} (${b.role})`);
+      (map[b.id] = map[b.id] || []).push(`${a.name} (${a.role})`);
+    });
+    return map;
+  }, [dupes]);
 
   const handleResetFace = async (u) => {
     if (!window.confirm(`Reset face of ${u.name}? They must register again at next login.`)) return;
     try {
       const res = await axios.post(`${API_BASE_URL}/api/face/reset/${u.id}`, {}, config);
-      alert(res.data?.message || "Face reset.");
+      toast(res.data?.message || "Face reset.");
       fetchUsers();
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to reset face");
+      toast(err.response?.data?.message || "Failed to reset face");
     }
   };
 
@@ -194,6 +229,20 @@ function Users() {
           </div>
         </div>
 
+        {dupes.length > 0 && (
+          <div className="users-dup-banner">
+            <strong>⚠ Same face on more than one account</strong>
+            <span>The attendance camera cannot tell these apart. Reset the face on the old account (or delete it):</span>
+            <ul>
+              {dupes.map(({ a, b }) => (
+                <li key={`${a.id}-${b.id}`}>
+                  {a.name} ({a.role}, {a.store_name || "—"}) ⇄ {b.name} ({b.role}, {b.store_name || "—"})
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="users-table-wrap">
           <table className="users-table wide">
             <thead>
@@ -218,6 +267,8 @@ function Users() {
               ) : (
                 shown.map((u) => {
                   const isProtected = parseInt(u.id, 10) === 1 || parseInt(u.id, 10) === 2;
+                  const canEdit = !isProtected && u.role !== "Admin";
+                  const isEditing = editing && editing.id === u.id;
                   return (
                     <tr key={u.id}>
                       <td className="users-td">
@@ -225,10 +276,34 @@ function Users() {
                         <div className="users-muted">{u.email}</div>
                       </td>
                       <td className="users-td">
-                        <span className="users-store">{u.store_name || (u.store_id ? `Store #${u.store_id}` : "—")}</span>
+                        {isEditing ? (
+                          <select
+                            className="users-select users-edit-select"
+                            value={editing.store_id}
+                            onChange={(e) => setEditing({ ...editing, store_id: e.target.value })}
+                          >
+                            {stores.map((s) => (
+                              <option key={s.id} value={s.id}>{s.name || `Store #${s.id}`}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="users-store">{u.store_name || (u.store_id ? `Store #${u.store_id}` : "—")}</span>
+                        )}
                       </td>
                       <td className="users-td">
-                        <span className={`users-role-badge ${getRoleClass(u.role)}`}>{u.role}</span>
+                        {isEditing ? (
+                          <select
+                            className="users-select users-edit-select"
+                            value={editing.role}
+                            onChange={(e) => setEditing({ ...editing, role: e.target.value })}
+                          >
+                            <option value="Manager">Manager</option>
+                            <option value="Cashier">Cashier</option>
+                            <option value="Store Keeper">Store Keeper</option>
+                          </select>
+                        ) : (
+                          <span className={`users-role-badge ${getRoleClass(u.role)}`}>{u.role}</span>
+                        )}
                       </td>
                       <td className="users-td num att-ok">{u.present_days}</td>
                       <td className="users-td num att-warn">{u.late_days}</td>
@@ -240,12 +315,35 @@ function Users() {
                         ) : (
                           <span className="users-pill">Not yet</span>
                         )}
+                        {dupMap[u.id] && (
+                          <div className="users-dup">⚠ Same face as {dupMap[u.id].join(", ")}</div>
+                        )}
                       </td>
                       <td className="users-td">
                         {u.pay_label}
                         {u.pending_change && <div className="users-pending">Change request pending (Salary page)</div>}
                       </td>
                       <td className="users-td users-actions">
+                        {isEditing ? (
+                          <>
+                            <button type="button" className="users-small-button save" onClick={handleSaveEdit}>
+                              Save
+                            </button>
+                            <button type="button" className="users-small-button" onClick={() => setEditing(null)}>
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          canEdit && (
+                            <button
+                              type="button"
+                              className="users-small-button"
+                              onClick={() => setEditing({ id: u.id, role: u.role, store_id: u.store_id || stores[0]?.id })}
+                            >
+                              ✏ Edit
+                            </button>
+                          )
+                        )}
                         {u.face_registered && (
                           <button type="button" className="users-small-button" onClick={() => handleResetFace(u)}>
                             Reset face

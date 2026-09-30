@@ -19,6 +19,22 @@ function storeFilter(scope, col = "store_id") {
 }
 
 // ======================================================================
+// Reply language chosen on the AI page: "bn" | "en" | "banglish"
+// ======================================================================
+const LANG_RULES = {
+  bn: "Write the reply in Bengali (Bangla script). Product names, 'profit', 'stock' etc. can stay in English.",
+  en: "Write the reply in simple English.",
+  banglish:
+    "Write the reply in Banglish: Bengali language written with English (Latin) letters, the casual way people " +
+    "in Bangladesh text each other, e.g. 'Ei mashe total bikri ৳12,500 hoyeche, goto mash er cheye 8% beshi.' " +
+    "Do NOT use Bangla script. Keep product names and numbers as they are.",
+};
+function pickLang(req) {
+  const raw = String(req.body?.lang ?? req.query?.lang ?? "").toLowerCase();
+  return LANG_RULES[raw] ? raw : null;
+}
+
+// ======================================================================
 // Build a compact business snapshot the AI can reason over.
 // ======================================================================
 async function buildSnapshot(scope) {
@@ -154,6 +170,7 @@ exports.chat = async (req, res) => {
 
     const scope = resolveScope(req);
     const snapshot = await buildSnapshot(scope);
+    const lang = pickLang(req);
 
     const model = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
     const url = "https://api.groq.com/openai/v1/chat/completions";
@@ -162,8 +179,12 @@ exports.chat = async (req, res) => {
       "You are a helpful business analyst for a retail Point-of-Sale system. " +
       "Answer ONLY using the JSON business data provided. Do not invent numbers. " +
       "If the data does not contain the answer, say so briefly. " +
-      "Reply in the SAME language as the user's question (Bengali or English). " +
-      "Keep answers short and clear. Amounts are in BDT (Taka), show them with the ৳ sign.";
+      "The user may write in Bengali, English or Banglish (Bengali in English letters) — understand all three. " +
+      (lang
+        ? LANG_RULES[lang] + " "
+        : "Reply in the SAME language and style as the user's question (Bengali, English or Banglish). ") +
+      "Keep answers short and clear; use short bullet points for lists. " +
+      "Amounts are in BDT (Taka), show them with the ৳ sign.";
 
     const userText =
       `BUSINESS DATA (JSON):\n${JSON.stringify(snapshot)}\n\n` +
@@ -228,8 +249,10 @@ exports.dailyReport = async (req, res) => {
     const model = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
     const url = "https://api.groq.com/openai/v1/chat/completions";
 
+    const lang = pickLang(req) || "bn";
     const systemText =
-      "You write a short daily business report for a shop owner, in BENGALI. " +
+      "You write a short daily business report for a shop owner. " +
+      LANG_RULES[lang] + " " +
       "Use ONLY the JSON data provided; never invent numbers. " +
       "Format as a few short bullet points covering: today's sales & orders, this month vs last month, " +
       "net profit, expenses, top-selling products, and any stock warnings. " +
@@ -385,12 +408,16 @@ exports.anomalies = async (req, res) => {
       if (yday < dailyAvg * 0.5) {
         alerts.push({
           level: "high",
+          code: "sales_drop",
+          data: { yday: Math.round(yday), avg: Math.round(dailyAvg) },
           title: "Sales dropped yesterday",
           detail: `Yesterday's sales ৳${Math.round(yday)} — well below the 30-day daily average ৳${Math.round(dailyAvg)}.`,
         });
       } else if (yday > dailyAvg * 2) {
         alerts.push({
           level: "info",
+          code: "sales_spike",
+          data: { yday: Math.round(yday), avg: Math.round(dailyAvg) },
           title: "Sales spike yesterday",
           detail: `Yesterday's sales ৳${Math.round(yday)} — more than double the daily average ৳${Math.round(dailyAvg)}.`,
         });
@@ -418,6 +445,8 @@ exports.anomalies = async (req, res) => {
       if (avg3 > 0 && thisM > avg3 * 1.5 && thisM - avg3 > 500) {
         alerts.push({
           level: "medium",
+          code: "expense_spike",
+          data: { category: r.category, thisMonth: Math.round(thisM), avg: Math.round(avg3) },
           title: `High "${r.category}" expense this month`,
           detail: `৳${Math.round(thisM)} spent so far — vs a monthly average of ৳${Math.round(avg3)}.`,
         });
@@ -442,6 +471,8 @@ exports.anomalies = async (req, res) => {
     if (dmgAvg > 0 && dmgY > dmgAvg * 2 && dmgY > 200) {
       alerts.push({
         level: "medium",
+        code: "damage_spike",
+        data: { yday: Math.round(dmgY), avg: Math.round(dmgAvg) },
         title: "High damage/spoilage yesterday",
         detail: `Damage loss ৳${Math.round(dmgY)} yesterday — over double the daily average ৳${Math.round(dmgAvg)}.`,
       });
@@ -463,6 +494,8 @@ exports.anomalies = async (req, res) => {
     if (outStock > 0) {
       alerts.push({
         level: "high",
+        code: "out_of_stock",
+        data: { count: outStock },
         title: `${outStock} product(s) out of stock`,
         detail: "These items cannot be sold right now. Restock soon.",
       });
@@ -470,6 +503,8 @@ exports.anomalies = async (req, res) => {
     if (lowStock > 0) {
       alerts.push({
         level: "medium",
+        code: "low_stock",
+        data: { count: lowStock },
         title: `${lowStock} product(s) low on stock`,
         detail: "Stock is 5 or below — consider reordering.",
       });
@@ -491,6 +526,8 @@ exports.anomalies = async (req, res) => {
       if (absent >= 2) {
         alerts.push({
           level: "medium",
+          code: "staff_absent",
+          data: { count: absent },
           title: `${absent} staff absent today`,
           detail: "More absentees than usual — check staffing.",
         });

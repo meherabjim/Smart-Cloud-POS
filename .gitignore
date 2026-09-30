@@ -1,4 +1,4 @@
-﻿node_modules/
+node_modules/
 **/node_modules/
 .env
 .env.*
@@ -17,3 +17,10 @@ backend/.env
 backend/uploads/
 
 Claude outputs/
+
+# Selenium outputs + local test password (never commit)
+tests/screenshots/
+tests/report.html
+tests/__pycache__/
+tests/.pytest_cache/
+tests/config_local.py

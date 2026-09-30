@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import API_BASE_URL from "../apiConfig";
 import "./Suppliers.css";
+import { toast } from "../components/Toast";
 
 function Suppliers({ user, activeStoreId }) {
   const storeId = activeStoreId || Number(localStorage.getItem("activeStoreId")) || 1;
@@ -32,7 +33,7 @@ function Suppliers({ user, activeStoreId }) {
       setSuppliers(res.data.suppliers || []);
       setTotalDue(res.data.total_due || 0);
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to load suppliers.");
+      toast(err.response?.data?.message || "Failed to load suppliers.");
     } finally {
       setLoading(false);
     }
@@ -43,13 +44,13 @@ function Suppliers({ user, activeStoreId }) {
 
   const addSupplier = async (e) => {
     e.preventDefault();
-    if (!name.trim()) { alert("Supplier name is required."); return; }
+    if (!name.trim()) { toast("Supplier name is required."); return; }
     try {
       await axios.post(`${API_BASE_URL}/api/suppliers`,
         { name, phone, address, store_id: storeId }, { headers });
       setName(""); setPhone(""); setAddress(""); load();
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to add supplier.");
+      toast(err.response?.data?.message || "Failed to add supplier.");
     }
   };
 
@@ -65,7 +66,7 @@ function Suppliers({ user, activeStoreId }) {
 
   const submitLedger = async (e) => {
     e.preventDefault();
-    if (!amount || Number(amount) <= 0) { alert("Enter a valid amount."); return; }
+    if (!amount || Number(amount) <= 0) { toast("Enter a valid amount."); return; }
     const url = actionType === "DUE"
       ? `${API_BASE_URL}/api/suppliers/${active.id}/due`
       : `${API_BASE_URL}/api/suppliers/${active.id}/payment`;
@@ -73,7 +74,7 @@ function Suppliers({ user, activeStoreId }) {
       await axios.post(url, { amount: Number(amount), note: ledgerNote }, { headers });
       setActive(null); load();
     } catch (err) {
-      alert(err.response?.data?.message || "Failed.");
+      toast(err.response?.data?.message || "Failed.");
     }
   };
 
@@ -83,7 +84,7 @@ function Suppliers({ user, activeStoreId }) {
       await axios.delete(`${API_BASE_URL}/api/suppliers/${id}`, { headers });
       load();
     } catch (err) {
-      alert(err.response?.data?.message || "Delete failed.");
+      toast(err.response?.data?.message || "Delete failed.");
     }
   };
 
@@ -224,4 +225,4 @@ function Suppliers({ user, activeStoreId }) {
   );
 }
 
-export default Suppliers;
+export default Suppliers;

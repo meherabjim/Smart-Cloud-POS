@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import API_BASE_URL from "../apiConfig";
 import "./Products.css";
+import { toast } from "../components/Toast";
 
 const API = axios.create({
   baseURL: `${API_BASE_URL}/api/products`,
@@ -130,7 +131,7 @@ function Products() {
       setMessage("Product deleted successfully");
       loadProducts();
     } catch (err) {
-      alert(err.response?.data?.message || "Delete Failed");
+      toast(err.response?.data?.message || "Delete Failed");
     }
   };
 
@@ -156,7 +157,7 @@ function Products() {
       loadProducts();
     } catch (err) {
       console.log(err);
-      alert(err.response?.data?.message || "Price Update Failed");
+      toast(err.response?.data?.message || "Price Update Failed");
     }
   };
 
@@ -169,7 +170,7 @@ function Products() {
       loadProducts();
     } catch (err) {
       console.log(err);
-      alert(err.response?.data?.message || "Stock Update Failed");
+      toast(err.response?.data?.message || "Stock Update Failed");
     }
   };
 
@@ -183,7 +184,7 @@ function Products() {
     const printWindow = window.open("", "_blank", "width=800,height=700");
 
     if (!printWindow) {
-      alert("Popup blocked. Please allow popups for this site to print barcodes.");
+      toast("Popup blocked. Please allow popups for this site to print barcodes.");
       return;
     }
 
@@ -545,4 +546,4 @@ function Products() {
   );
 }
 
-export default Products;
+export default Products;

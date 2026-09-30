@@ -1,4 +1,15 @@
 const db = require("../config/db");
+const { todayLocal, isWeeklyHoliday } = require("../config/salaryRules");
+
+// Salary already paid for this user's month? Then attendance is locked.
+const isMonthPaid = async (userId, dateStr) => {
+  const [y, m] = String(dateStr).split("-").map(Number);
+  const [rows] = await db.query(
+    "SELECT id FROM salary_payments WHERE user_id = ? AND year = ? AND month = ? LIMIT 1",
+    [userId, y, m]
+  );
+  return rows.length > 0;
+};
 
 // Only Admin can read every store; others locked to their own store.
 const hasAllStoreAccess = (role) => role === "Admin";
@@ -13,7 +24,7 @@ const resolveStore = (req, bodyOrQueryStoreId) => {
 // GET /api/attendance?date=&store_id=
 exports.getAttendanceByDate = async (req, res) => {
   try {
-    const date = req.query.date || new Date().toISOString().slice(0, 10);
+    const date = req.query.date || todayLocal();
     const scopedStore = resolveStore(req, req.query.store_id);
 
     let sql = `
@@ -23,6 +34,7 @@ exports.getAttendanceByDate = async (req, res) => {
       FROM users u
       LEFT JOIN attendance a ON a.user_id = u.id AND a.date = ?
       WHERE (u.status IS NULL OR u.status = 'Active')
+        AND u.role <> 'Admin'
     `;
     const params = [date];
     if (scopedStore) { sql += " AND u.store_id = ?"; params.push(scopedStore); }
@@ -47,12 +59,37 @@ exports.markAttendance = async (req, res) => {
     if (!allowed.includes(status)) {
       return res.status(400).json({ success: false, message: "Invalid status." });
     }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) {
+      return res.status(400).json({ success: false, message: "Date must be YYYY-MM-DD." });
+    }
+    if (String(date) > todayLocal()) {
+      return res.status(400).json({ success: false, message: "Attendance cannot be marked for a future date." });
+    }
+    // Nobody marks their own attendance by hand.
+    // Only a face-camera check-in for today (Present/Late) is allowed for yourself.
+    const isSelf = Number(user_id) === Number(req.user.id);
+    const faceCheckIn =
+      req.body.source === "face" &&
+      String(date) === todayLocal() &&
+      (status === "Present" || status === "Late");
+    if (isSelf && !faceCheckIn) {
+      return res.status(403).json({ success: false, message: "You cannot mark your own attendance. Use the face camera or ask the Admin." });
+    }
     const [userRows] = await db.query(
-      "SELECT id, store_id FROM users WHERE id = ? LIMIT 1",
+      "SELECT id, store_id, role FROM users WHERE id = ? LIMIT 1",
       [user_id]
     );
     if (userRows.length === 0) {
       return res.status(404).json({ success: false, message: "Staff member not found." });
+    }
+    if (userRows[0].role === "Admin") {
+      return res.status(400).json({ success: false, message: "Admin attendance is not tracked." });
+    }
+    if (await isMonthPaid(user_id, date)) {
+      return res.status(400).json({
+        success: false,
+        message: "Salary for this month is already paid, so attendance is locked.",
+      });
     }
     const staffStore = userRows[0].store_id;
     if (!hasAllStoreAccess(req.user.role) && Number(staffStore) !== Number(req.user.store_id)) {
@@ -96,6 +133,7 @@ exports.getMonthlySummary = async (req, res) => {
       LEFT JOIN attendance a
         ON a.user_id = u.id AND YEAR(a.date) = ? AND MONTH(a.date) = ?
       WHERE (u.status IS NULL OR u.status = 'Active')
+        AND u.role <> 'Admin'
     `;
     const params = [year, month];
     if (scopedStore) { sql += " AND u.store_id = ?"; params.push(scopedStore); }
@@ -123,8 +161,14 @@ exports.getMonthlySummary = async (req, res) => {
 // Marks active staff with NO row for the date as Absent.
 exports.closeDay = async (req, res) => {
   try {
-    const date = req.body.date || new Date().toISOString().slice(0, 10);
+    const date = req.body.date || todayLocal();
     const scopedStore = resolveStore(req, req.body.store_id);
+    if (String(date) > todayLocal()) {
+      return res.status(400).json({ success: false, message: "You cannot close a future day." });
+    }
+    if (isWeeklyHoliday(date)) {
+      return res.status(400).json({ success: false, message: "This is the weekly holiday. Nobody is marked absent." });
+    }
     if (!scopedStore) {
       return res.status(400).json({ success: false, message: "A store is required to close the day." });
     }
@@ -135,12 +179,15 @@ exports.closeDay = async (req, res) => {
       LEFT JOIN attendance a ON a.user_id = u.id AND a.date = ?
       WHERE u.store_id = ?
         AND (u.status IS NULL OR u.status = 'Active')
+        AND u.role <> 'Admin'
         AND a.id IS NULL
       `,
       [date, scopedStore]
     );
     let marked = 0;
     for (const m of missing) {
+      // Month already paid -> attendance locked, skip
+      if (await isMonthPaid(m.user_id, date)) continue;
       await db.query(
         `
         INSERT INTO attendance (user_id, store_id, date, status, created_by)
@@ -160,4 +207,4 @@ exports.closeDay = async (req, res) => {
     console.error("Close Day Error:", error);
     return res.status(500).json({ success: false, message: error.message });
   }
-};
+};

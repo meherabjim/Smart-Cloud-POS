@@ -12,11 +12,14 @@ function Salary({ user }) {
   const isAdmin = user?.role === "Admin";
   const now = new Date();
 
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
+  // Salary is paid for the month that just ended, so open last month by default
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const [year, setYear] = useState(lastMonth.getFullYear());
+  const [month, setMonth] = useState(lastMonth.getMonth() + 1);
 
   const [staff, setStaff] = useState([]);
   const [totalPayable, setTotalPayable] = useState(0);
+  const [monthInfo, setMonthInfo] = useState({ finished: true, payableFrom: "" });
   const [loading, setLoading] = useState(true);
   const [salaryEdits, setSalaryEdits] = useState({});
 
@@ -37,6 +40,10 @@ function Salary({ user }) {
       ]);
       setStaff(prev.data.staff || []);
       setTotalPayable(prev.data.total_unpaid_payable || 0);
+      setMonthInfo({
+        finished: prev.data.month_finished !== false,
+        payableFrom: prev.data.payable_from || "",
+      });
       setRequests(reqs.data.requests || []);
       setHistory(hist.data.payments || []);
       setSalaryEdits({});
@@ -53,7 +60,7 @@ function Salary({ user }) {
 
   const saveSalary = async (userId) => {
     const value = salaryEdits[userId];
-    if (value == null || value === "" || Number(value) < 0) {
+    if (value == null || value === "" || !Number.isFinite(Number(value)) || Number(value) < 0) {
       setNotice({ kind: "bad", text: "Enter a valid salary." });
       return;
     }
@@ -90,9 +97,13 @@ function Salary({ user }) {
         setNotice({ kind: "ok", text: `${res.data.message} Ref: ${p.txn_ref || "-"}` });
       } else {
         const res = await axios.post(`${API_BASE_URL}/api/salary/pay-all`, { year, month }, { headers });
+        const skippedNames = (res.data.skipped || [])
+          .filter((k) => k.reason !== "already paid")
+          .map((k) => `${k.name} (${k.reason})`)
+          .join(", ");
         setNotice({
           kind: "ok",
-          text: `${res.data.message} Total: ${taka(res.data.total_paid)}. Bank / bKash / Nagad / Rocket payments are DEMO records — no real money was sent.`,
+          text: `${res.data.message} Total: ${taka(res.data.total_paid)}.${skippedNames ? ` Not paid: ${skippedNames}` : ""} Bank / bKash / Nagad / Rocket payments are DEMO records — no real money was sent.`,
         });
       }
       setConfirm(null);
@@ -105,7 +116,8 @@ function Salary({ user }) {
     }
   };
 
-  const unpaid = staff.filter((s) => !s.already_paid);
+  // Only staff that can really be paid now (month finished, salary set, not paid)
+  const unpaid = staff.filter((s) => s.can_pay ?? !s.already_paid);
   const unpaidByMethod = unpaid.reduce((acc, s) => {
     const m = s.payout?.method || "Cash";
     acc[m] = (acc[m] || 0) + Number(s.net_paid);
@@ -125,12 +137,15 @@ function Salary({ user }) {
       <div className="sal-header">
         <div>
           <h2>💵 Salary</h2>
-          <p>
-            Rule: 1 day = salary ÷ 30. First 3 absents free, then 1 day cut each.
-            First 4 lates free, then every 3 lates = 1 day cut. Bank / bKash / Nagad /
-            Rocket payouts are <b>demo records</b> — no payment gateway is connected, so
-            no real money moves.
-          </p>
+          <p>Salary is cut automatically for absent and late days.</p>
+          <div className="sal-rules">
+            <span>3 absent free</span>
+            <span>Then 1 absent = 1 day cut</span>
+            <span>4 late free</span>
+            <span>Then 3 late = 1 day cut</span>
+            <span>1 day = salary ÷ 30</span>
+            <span>Pay after month ends</span>
+          </div>
         </div>
         <div className="sal-payable">
           <span>Unpaid payable ({month}/{year})</span>
@@ -142,6 +157,15 @@ function Salary({ user }) {
         <div className={`sal-notice ${notice.kind}`}>
           <span>{notice.text}</span>
           <button type="button" onClick={() => setNotice(null)} aria-label="Close">✕</button>
+        </div>
+      )}
+
+      {!loading && !monthInfo.finished && (
+        <div className="sal-notice info">
+          <span>
+            {month}/{year} is not finished yet — you can see the numbers, but salary can be
+            paid from {monthInfo.payableFrom}.
+          </span>
         </div>
       )}
 
@@ -193,7 +217,14 @@ function Salary({ user }) {
                 <option key={m} value={m}>Month {m}</option>
               ))}
             </select>
-            <input type="number" value={year} style={{ width: 90 }} onChange={(e) => setYear(Number(e.target.value))} />
+            <input
+              type="number"
+              min="2020"
+              max="2100"
+              value={year}
+              style={{ width: 90 }}
+              onChange={(e) => setYear(Number(e.target.value) || now.getFullYear())}
+            />
           </div>
           <button className="sal-payall" onClick={() => setConfirm({ type: "all" })} disabled={unpaid.length === 0}>
             💰 Pay all this month ({unpaid.length})
@@ -233,6 +264,7 @@ function Salary({ user }) {
                       <td>
                         <div className="sal-edit">
                           <input
+                            key={`${s.user_id}-${s.base_salary}`}
                             type="number"
                             min="0"
                             defaultValue={s.base_salary}
@@ -244,7 +276,10 @@ function Salary({ user }) {
                       <td className="sal-absent">{s.absent_days}</td>
                       <td className="sal-late">{s.late_days}</td>
                       <td>{taka(deduction)}</td>
-                      <td className="sal-net">{taka(s.net_paid)}</td>
+                      <td className="sal-net">
+                        {taka(s.net_paid)}
+                        {s.absent_whole_month && <div className="sal-warn">Absent all month</div>}
+                      </td>
                       <td>
                         <span className={`sal-method m-${(s.payout?.method || "cash").toLowerCase()}`}>
                           {s.payout?.label || "Cash"}
@@ -254,6 +289,13 @@ function Salary({ user }) {
                       <td style={{ textAlign: "right" }}>
                         {s.already_paid ? (
                           <span className="sal-paid">Paid ✓</span>
+                        ) : s.can_pay === false ? (
+                          <>
+                            <button className="sal-pay" disabled style={{ opacity: 0.5, cursor: "not-allowed" }}>
+                              Pay
+                            </button>
+                            <div className="sal-warn">{s.block_reason}</div>
+                          </>
                         ) : (
                           <button className="sal-pay" onClick={() => setConfirm({ type: "one", row: s })}>Pay</button>
                         )}
@@ -320,6 +362,12 @@ function Salary({ user }) {
                     <span>Late cut ({confirm.row.late_days} late, 4 free)</span>
                     <b>− {taka(confirm.row.late_deduction)}</b>
                   </div>
+                  {confirm.row.absent_whole_month && (
+                    <div className="neg">
+                      <span>No Present/Late day in this month</span>
+                      <b>Salary ৳0</b>
+                    </div>
+                  )}
                   <div className="total"><span>Will be paid</span><b>{taka(confirm.row.net_paid)}</b></div>
                 </div>
                 <p className="sal-to">
@@ -346,7 +394,10 @@ function Salary({ user }) {
                       <b>{taka(amt)}</b>
                     </div>
                   ))}
-                  <div className="total"><span>{unpaid.length} staff, total</span><b>{taka(totalPayable)}</b></div>
+                  <div className="total">
+                    <span>{unpaid.length} staff, total</span>
+                    <b>{taka(unpaid.reduce((sum, s) => sum + Number(s.net_paid), 0))}</b>
+                  </div>
                 </div>
                 <p className="sal-demo-note">
                   Bank / bKash / Nagad / Rocket payments are recorded as DEMO — no real money is sent.

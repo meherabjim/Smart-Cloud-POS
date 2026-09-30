@@ -21,10 +21,10 @@ router.post(
   checkout
 );
 
-// Sales History
-router.get("/", getSales);
+// Sales History (login required; staff see only their own store)
+router.get("/", verifyToken, getSales);
 
-// Single Invoice
-router.get("/:id", getSaleDetails);
+// Single Invoice (login required)
+router.get("/:id", verifyToken, getSaleDetails);
 
 module.exports = router;

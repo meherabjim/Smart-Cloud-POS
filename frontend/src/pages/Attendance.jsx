@@ -2,8 +2,10 @@ import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import API_BASE_URL from "../apiConfig";
 import "./Attendance.css";
+import { toast } from "../components/Toast";
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
+// Local date (not UTC) as YYYY-MM-DD
+const todayStr = () => new Date().toLocaleDateString("en-CA");
 
 function Attendance({ user, activeStoreId }) {
   const storeId =
@@ -11,7 +13,8 @@ function Attendance({ user, activeStoreId }) {
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
 
-  const isViewer = user?.role === "Viewer";
+  // Nobody marks their own attendance here (face camera only)
+  const isSelf = (id) => Number(id) === Number(user?.id);
 
   const now = new Date();
   const [date, setDate] = useState(todayStr());
@@ -31,7 +34,7 @@ function Attendance({ user, activeStoreId }) {
       );
       setStaff(res.data.staff || []);
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to load attendance.");
+      toast(err.response?.data?.message || "Failed to load attendance.");
     } finally {
       setLoading(false);
     }
@@ -55,7 +58,7 @@ function Attendance({ user, activeStoreId }) {
   useEffect(() => { loadSummary(); }, [loadSummary]);
 
   const mark = async (userId, status) => {
-    if (isViewer) return;
+    if (isSelf(userId)) return;
     try {
       const body = { user_id: userId, date, status };
       if (status === "Late" || status === "Present") {
@@ -65,7 +68,7 @@ function Attendance({ user, activeStoreId }) {
       loadDay();
       loadSummary();
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to save.");
+      toast(err.response?.data?.message || "Failed to save.");
     }
   };
 
@@ -76,7 +79,10 @@ function Attendance({ user, activeStoreId }) {
       <div className="att-header">
         <div>
           <h2>🕒 Attendance</h2>
-          <p>Mark daily attendance. Late / absent days affect salary.</p>
+          <p>
+            Mark daily attendance. Late / absent days affect salary. Your own attendance
+            is taken by the face camera. A month is locked after its salary is paid.
+          </p>
         </div>
         <div className="att-datebox">
           <label>Date</label>
@@ -108,7 +114,10 @@ function Attendance({ user, activeStoreId }) {
               ) : (
                 staff.map((s) => (
                   <tr key={s.user_id}>
-                    <td className="att-bold">{s.name}</td>
+                    <td className="att-bold">
+                      {s.name}
+                      {isSelf(s.user_id) && <span className="att-badge none" style={{ marginLeft: 6 }}>You</span>}
+                    </td>
                     <td>{s.role}</td>
                     <td>
                       {s.status ? (
@@ -122,7 +131,8 @@ function Attendance({ user, activeStoreId }) {
                         <button
                           key={opt}
                           type="button"
-                          disabled={isViewer}
+                          disabled={isSelf(s.user_id)}
+                          title={isSelf(s.user_id) ? "Use the face camera for your own attendance" : undefined}
                           className={`att-btn ${opt.toLowerCase()} ${s.status === opt ? "on" : ""}`}
                           onClick={() => mark(s.user_id, opt)}
                         >
@@ -147,7 +157,14 @@ function Attendance({ user, activeStoreId }) {
                 <option key={m} value={m}>Month {m}</option>
               ))}
             </select>
-            <input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} style={{ width: 90 }} />
+            <input
+              type="number"
+              min="2020"
+              max="2100"
+              value={year}
+              onChange={(e) => setYear(Number(e.target.value) || now.getFullYear())}
+              style={{ width: 90 }}
+            />
           </div>
         </div>
 
@@ -180,4 +197,4 @@ function Attendance({ user, activeStoreId }) {
   );
 }
 
-export default Attendance;
+export default Attendance;

@@ -1,9 +1,6 @@
 const db = require("../config/db");
 
-const {
-  normalizePhone,
-  isValidPhone,
-} = require("./customerController");
+const { normalizePhone, isValidPhone } = require("./customerController");
 
 // ========================================
 // Loyalty Rules
@@ -28,6 +25,12 @@ const toMoney = (value) => {
   return Number(number.toFixed(2));
 };
 
+// Clamp a percent value to 0..100
+const toPercent = (value) => Math.min(100, Math.max(0, Number(value) || 0));
+
+// Admin and demo Viewer can see every store; other staff only their own store
+const canSeeAllStores = (user) => ["Admin", "Viewer"].includes(user?.role);
+
 // ========================================
 // Get All Sales
 // Store-wise + phone search
@@ -35,7 +38,17 @@ const toMoney = (value) => {
 
 exports.getSales = async (req, res) => {
   try {
-    const { phone, store_id } = req.query;
+    const { phone } = req.query;
+
+    // Non-admin staff can only see their own store
+    const store_id = canSeeAllStores(req.user) ? req.query.store_id : req.user.store_id;
+
+    if (!canSeeAllStores(req.user) && !store_id) {
+      return res.status(403).json({
+        success: false,
+        message: "No store is assigned to your account.",
+      });
+    }
 
     let sql = `
       SELECT
@@ -63,23 +76,15 @@ exports.getSales = async (req, res) => {
 
     sql += ` ORDER BY sales.id DESC`;
 
-    const [rows] = await db.query(
-      sql,
-      params
-    );
+    const [rows] = await db.query(sql, params);
 
     return res.json(rows);
   } catch (error) {
-    console.error(
-      "Get Sales Error:",
-      error
-    );
+    console.error("Get Sales Error:", error);
 
     return res.status(500).json({
       success: false,
-      message:
-        error.message ||
-        "Failed to load sales.",
+      message: error.message || "Failed to load sales.",
     });
   }
 };
@@ -88,15 +93,9 @@ exports.getSales = async (req, res) => {
 // Get Single Sale Details
 // ========================================
 
-exports.getSaleDetails = async (
-  req,
-  res
-) => {
+exports.getSaleDetails = async (req, res) => {
   try {
-    const saleId = Number.parseInt(
-      req.params.id,
-      10
-    );
+    const saleId = Number.parseInt(req.params.id, 10);
 
     if (!saleId) {
       return res.status(400).json({
@@ -119,13 +118,20 @@ exports.getSaleDetails = async (
       WHERE sales.id = ?
       LIMIT 1
       `,
-      [saleId]
+      [saleId],
     );
 
     if (sales.length === 0) {
       return res.status(404).json({
         success: false,
         message: "Sale not found.",
+      });
+    }
+
+    if (!canSeeAllStores(req.user) && Number(sales[0].store_id) !== Number(req.user.store_id)) {
+      return res.status(403).json({
+        success: false,
+        message: "This sale belongs to another store.",
       });
     }
 
@@ -146,7 +152,7 @@ exports.getSaleDetails = async (
 
       WHERE si.sale_id = ?
       `,
-      [saleId]
+      [saleId],
     );
 
     return res.status(200).json({
@@ -155,16 +161,11 @@ exports.getSaleDetails = async (
       items,
     });
   } catch (error) {
-    console.error(
-      "Get Sale Details Error:",
-      error
-    );
+    console.error("Get Sale Details Error:", error);
 
     return res.status(500).json({
       success: false,
-      message:
-        error.message ||
-        "Failed to load sale details.",
+      message: error.message || "Failed to load sale details.",
     });
   }
 };
@@ -182,6 +183,9 @@ exports.checkout = async (req, res) => {
     tax,
     payment_method,
     redeem_points,
+    discount_percent,
+    tax_percent,
+    amount_received,
   } = req.body;
 
   // ----------------------------------------
@@ -200,81 +204,84 @@ exports.checkout = async (req, res) => {
   if (!Number.isInteger(storeId) || storeId <= 0) {
     return res.status(400).json({
       success: false,
-      message:
-        "A valid store_id is required.",
+      message: "A valid store_id is required.",
     });
   }
 
-  const normalizedPhone =
-    normalizePhone(customer_phone);
+  // Only Admin can sell for any store; other staff sell only for their own store
+  if (req.user?.role !== "Admin" && Number(req.user?.store_id) !== storeId) {
+    return res.status(403).json({
+      success: false,
+      message: "You can only sell from your own store.",
+    });
+  }
+
+  const normalizedPhone = normalizePhone(customer_phone);
 
   if (!normalizedPhone) {
     return res.status(400).json({
       success: false,
-      message:
-        "Customer phone number is required.",
+      message: "Customer phone number is required.",
     });
   }
 
   if (!isValidPhone(normalizedPhone)) {
     return res.status(400).json({
       success: false,
-      message:
-        "Enter a valid Bangladeshi phone number.",
+      message: "Enter a valid Bangladeshi phone number.",
     });
   }
 
   if (!payment_method) {
     return res.status(400).json({
       success: false,
-      message:
-        "Payment method is required.",
+      message: "Payment method is required.",
     });
   }
 
-  const requestedRedeemPoints =
-    Number(redeem_points) || 0;
+  const requestedRedeemPoints = Number(redeem_points) || 0;
 
-  if (
-    !Number.isInteger(requestedRedeemPoints) ||
-    requestedRedeemPoints < 0
-  ) {
+  if (!Number.isInteger(requestedRedeemPoints) || requestedRedeemPoints < 0) {
     return res.status(400).json({
       success: false,
-      message:
-        "Redeem points must be a valid whole number.",
+      message: "Redeem points must be a valid whole number.",
     });
   }
 
-  if (
-    requestedRedeemPoints > 0 &&
-    requestedRedeemPoints <
-      MIN_REDEEM_POINTS
-  ) {
+  if (requestedRedeemPoints > 0 && requestedRedeemPoints < MIN_REDEEM_POINTS) {
     return res.status(400).json({
       success: false,
-      message:
-        "Minimum redeem amount is 100 points.",
+      message: "Minimum redeem amount is 100 points.",
     });
   }
 
-  if (
-    requestedRedeemPoints %
-      REDEEM_POINT_BLOCK !==
-    0
-  ) {
+  if (requestedRedeemPoints % REDEEM_POINT_BLOCK !== 0) {
     return res.status(400).json({
       success: false,
-      message:
-        "Points can only be redeemed in multiples of 100.",
+      message: "Points can only be redeemed in multiples of 100.",
     });
   }
 
-  const manualDiscount =
-    Math.max(0, toMoney(discount));
+  // Percent values (0-100). If not sent, old amount fields are used.
+  const usePercent = discount_percent !== undefined || tax_percent !== undefined;
 
-  const taxAmount =
-    Math.max(0, toMoney(tax));
+  const discountPct = toPercent(discount_percent);
+  const taxPct = toPercent(tax_percent);
+
+  // Same product twice in the cart -> merge into one line,
+  // so the stock check sees the full quantity
+  const mergedItems = [];
+  for (const item of items) {
+    const found = mergedItems.find((row) => Number(row.id) === Number(item.id));
+    if (found) {
+      found.quantity = Number(found.quantity) + Number(item.quantity);
+    } else {
+      mergedItems.push({ id: item.id, quantity: item.quantity });
+    }
+  }
+
+  let manualDiscount = 0;
+  let taxAmount = 0;
 
   let connection;
 
@@ -287,21 +294,18 @@ exports.checkout = async (req, res) => {
     // Check Store
     // ========================================
 
-    const [storeRows] =
-      await connection.query(
-        `
+    const [storeRows] = await connection.query(
+      `
         SELECT id, name
         FROM stores
         WHERE id = ?
         LIMIT 1
         `,
-        [storeId]
-      );
+      [storeId],
+    );
 
     if (storeRows.length === 0) {
-      throw new Error(
-        "Selected store was not found."
-      );
+      throw new Error("Selected store was not found.");
     }
 
     // ========================================
@@ -309,9 +313,8 @@ exports.checkout = async (req, res) => {
     // Prevent simultaneous double redemption
     // ========================================
 
-    const [customerRows] =
-      await connection.query(
-        `
+    const [customerRows] = await connection.query(
+      `
         SELECT
           id,
           name,
@@ -323,40 +326,29 @@ exports.checkout = async (req, res) => {
         LIMIT 1
         FOR UPDATE
         `,
-        [normalizedPhone]
-      );
+      [normalizedPhone],
+    );
 
     if (customerRows.length === 0) {
-      const error = new Error(
-        "This phone number is not registered as a customer."
-      );
+      const error = new Error("This phone number is not registered as a customer.");
 
       error.statusCode = 404;
       throw error;
     }
 
-    const customer =
-      customerRows[0];
+    const customer = customerRows[0];
 
     if (customer.status !== "Active") {
-      const error = new Error(
-        "This customer account is inactive."
-      );
+      const error = new Error("This customer account is inactive.");
 
       error.statusCode = 403;
       throw error;
     }
 
-    const previousPoints =
-      Number(customer.points_balance) || 0;
+    const previousPoints = Number(customer.points_balance) || 0;
 
-    if (
-      requestedRedeemPoints >
-      previousPoints
-    ) {
-      const error = new Error(
-        `Customer has only ${previousPoints} available points.`
-      );
+    if (requestedRedeemPoints > previousPoints) {
+      const error = new Error(`Customer has only ${previousPoints} available points.`);
 
       error.statusCode = 400;
       throw error;
@@ -370,40 +362,27 @@ exports.checkout = async (req, res) => {
     const verifiedItems = [];
     let subtotal = 0;
 
-    for (const item of items) {
-      const productId =
-        Number(item.id);
+    for (const item of mergedItems) {
+      const productId = Number(item.id);
 
-      const quantity =
-        Number(item.quantity);
+      const quantity = Number(item.quantity);
 
-      if (
-        !Number.isInteger(productId) ||
-        productId <= 0
-      ) {
-        const error = new Error(
-          "Cart contains an invalid product."
-        );
+      if (!Number.isInteger(productId) || productId <= 0) {
+        const error = new Error("Cart contains an invalid product.");
 
         error.statusCode = 400;
         throw error;
       }
 
-      if (
-        !Number.isInteger(quantity) ||
-        quantity <= 0
-      ) {
-        const error = new Error(
-          "Product quantity must be at least 1."
-        );
+      if (!Number.isInteger(quantity) || quantity <= 0) {
+        const error = new Error("Product quantity must be at least 1.");
 
         error.statusCode = 400;
         throw error;
       }
 
-      const [productRows] =
-        await connection.query(
-          `
+      const [productRows] = await connection.query(
+        `
           SELECT
             id,
             store_id,
@@ -417,82 +396,52 @@ exports.checkout = async (req, res) => {
           LIMIT 1
           FOR UPDATE
           `,
-          [productId]
-        );
+        [productId],
+      );
 
       if (productRows.length === 0) {
-        const error = new Error(
-          `Product #${productId} was not found.`
-        );
+        const error = new Error(`Product #${productId} was not found.`);
 
         error.statusCode = 404;
         throw error;
       }
 
-      const product =
-        productRows[0];
+      const product = productRows[0];
 
-      if (
-        Number(product.store_id) !==
-        storeId
-      ) {
-        const error = new Error(
-          `${product.name} does not belong to the selected store.`
-        );
+      if (Number(product.store_id) !== storeId) {
+        const error = new Error(`${product.name} does not belong to the selected store.`);
 
         error.statusCode = 400;
         throw error;
       }
 
-      if (
-        product.status &&
-        product.status !== "Active"
-      ) {
-        const error = new Error(
-          `${product.name} is currently inactive.`
-        );
+      if (product.status && product.status !== "Active") {
+        const error = new Error(`${product.name} is currently inactive.`);
 
         error.statusCode = 400;
         throw error;
       }
 
-      const currentStock =
-        Number(product.stock) || 0;
+      const currentStock = Number(product.stock) || 0;
 
       if (currentStock < quantity) {
         const error = new Error(
-          `Insufficient stock for ${product.name}. Available: ${currentStock}.`
+          `Insufficient stock for ${product.name}. Available: ${currentStock}.`,
         );
 
         error.statusCode = 400;
         throw error;
       }
 
-      const originalPrice =
-        toMoney(product.selling_price);
+      const originalPrice = toMoney(product.selling_price);
 
-      const productDiscountPercent =
-        Math.max(
-          0,
-          Number(
-            product.discount_percent
-          ) || 0
-        );
+      const productDiscountPercent = Math.max(0, Number(product.discount_percent) || 0);
 
-      const unitPrice = toMoney(
-        originalPrice -
-          (originalPrice *
-            productDiscountPercent) /
-            100
-      );
+      const unitPrice = toMoney(originalPrice - (originalPrice * productDiscountPercent) / 100);
 
-      const lineTotal = toMoney(
-        unitPrice * quantity
-      );
+      const lineTotal = toMoney(unitPrice * quantity);
 
-      subtotal = toMoney(
-        subtotal + lineTotal
-      );
+      subtotal = toMoney(subtotal + lineTotal);
 
       verifiedItems.push({
         id: product.id,
@@ -507,72 +456,65 @@ exports.checkout = async (req, res) => {
     // Calculate Loyalty Discount
     // ========================================
 
-    const redeemBlocks =
-      requestedRedeemPoints /
-      REDEEM_POINT_BLOCK;
+    // Discount and tax are calculated by the server
+    if (usePercent) {
+      manualDiscount = toMoney((subtotal * discountPct) / 100);
+      taxAmount = toMoney(((subtotal - manualDiscount) * taxPct) / 100);
+    } else {
+      manualDiscount = Math.min(subtotal, Math.max(0, toMoney(discount)));
+      taxAmount = Math.max(0, toMoney(tax));
+    }
 
-    const pointsDiscount =
-      toMoney(
-        redeemBlocks *
-          REDEEM_VALUE_PER_BLOCK
-      );
+    const redeemBlocks = requestedRedeemPoints / REDEEM_POINT_BLOCK;
 
-    const amountBeforePointDiscount =
-      toMoney(
-        subtotal -
-          manualDiscount +
-          taxAmount
-      );
+    const pointsDiscount = toMoney(redeemBlocks * REDEEM_VALUE_PER_BLOCK);
+
+    const amountBeforePointDiscount = toMoney(subtotal - manualDiscount + taxAmount);
 
     if (amountBeforePointDiscount < 0) {
-      const error = new Error(
-        "Discount cannot be greater than the bill amount."
-      );
+      const error = new Error("Discount cannot be greater than the bill amount.");
 
       error.statusCode = 400;
       throw error;
     }
 
+    if (pointsDiscount > amountBeforePointDiscount) {
+      const error = new Error("Point discount cannot be greater than the payable bill.");
+
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const finalPayableAmount = toMoney(amountBeforePointDiscount - pointsDiscount);
+
+    // Cash: the customer must give at least the payable amount
     if (
-      pointsDiscount >
-      amountBeforePointDiscount
+      payment_method === "Cash" &&
+      amount_received !== undefined &&
+      amount_received !== null &&
+      amount_received !== "" &&
+      toMoney(amount_received) < finalPayableAmount
     ) {
       const error = new Error(
-        "Point discount cannot be greater than the payable bill."
+        `Cash received is less than the payable amount (Tk ${finalPayableAmount.toFixed(2)}).`,
       );
-
       error.statusCode = 400;
       throw error;
     }
 
-    const finalPayableAmount =
-      toMoney(
-        amountBeforePointDiscount -
-          pointsDiscount
-      );
-
     // Every paid Tk 100 = 1 point
-    const pointsEarned =
-      Math.floor(
-        finalPayableAmount /
-          POINT_EARN_AMOUNT
-      );
+    const pointsEarned = Math.floor(finalPayableAmount / POINT_EARN_AMOUNT);
 
-    const pointsAfterRedeem =
-      previousPoints -
-      requestedRedeemPoints;
+    const pointsAfterRedeem = previousPoints - requestedRedeemPoints;
 
-    const finalPointsBalance =
-      pointsAfterRedeem +
-      pointsEarned;
+    const finalPointsBalance = pointsAfterRedeem + pointsEarned;
 
     // ========================================
     // Save Main Sale
     // ========================================
 
-    const [saleResult] =
-      await connection.query(
-        `
+    const [saleResult] = await connection.query(
+      `
         INSERT INTO sales
         (
           store_id,
@@ -589,23 +531,22 @@ exports.checkout = async (req, res) => {
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
-        [
-          storeId,
-          normalizedPhone,
-          customer.id,
-          subtotal,
-          manualDiscount,
-          taxAmount,
-          finalPayableAmount,
-          payment_method,
-          pointsEarned,
-          requestedRedeemPoints,
-          pointsDiscount,
-        ]
-      );
+      [
+        storeId,
+        normalizedPhone,
+        customer.id,
+        subtotal,
+        manualDiscount,
+        taxAmount,
+        finalPayableAmount,
+        payment_method,
+        pointsEarned,
+        requestedRedeemPoints,
+        pointsDiscount,
+      ],
+    );
 
-    const saleId =
-      saleResult.insertId;
+    const saleId = saleResult.insertId;
 
     // ========================================
     // Save Sale Items and Update Stock
@@ -623,12 +564,7 @@ exports.checkout = async (req, res) => {
         )
         VALUES (?, ?, ?, ?)
         `,
-        [
-          saleId,
-          item.id,
-          item.quantity,
-          item.unit_price,
-        ]
+        [saleId, item.id, item.quantity, item.unit_price],
       );
 
       await connection.query(
@@ -637,10 +573,7 @@ exports.checkout = async (req, res) => {
         SET stock = stock - ?
         WHERE id = ?
         `,
-        [
-          item.quantity,
-          item.id,
-        ]
+        [item.quantity, item.id],
       );
 
       await connection.query(
@@ -654,11 +587,7 @@ exports.checkout = async (req, res) => {
         )
         VALUES (?, ?, 'OUT', ?)
         `,
-        [
-          storeId,
-          item.id,
-          item.quantity,
-        ]
+        [storeId, item.id, item.quantity],
       );
     }
 
@@ -689,10 +618,8 @@ exports.checkout = async (req, res) => {
           requestedRedeemPoints,
           pointsDiscount,
           pointsAfterRedeem,
-          `${requestedRedeemPoints} points redeemed for Tk ${pointsDiscount.toFixed(
-            2
-          )} discount.`,
-        ]
+          `${requestedRedeemPoints} points redeemed for Tk ${pointsDiscount.toFixed(2)} discount.`,
+        ],
       );
     }
 
@@ -723,10 +650,8 @@ exports.checkout = async (req, res) => {
           pointsEarned,
           finalPayableAmount,
           finalPointsBalance,
-          `${pointsEarned} points earned from Tk ${finalPayableAmount.toFixed(
-            2
-          )} paid.`,
-        ]
+          `${pointsEarned} points earned from Tk ${finalPayableAmount.toFixed(2)} paid.`,
+        ],
       );
     }
 
@@ -740,10 +665,7 @@ exports.checkout = async (req, res) => {
       SET points_balance = ?
       WHERE id = ?
       `,
-      [
-        finalPointsBalance,
-        customer.id,
-      ]
+      [finalPointsBalance, customer.id],
     );
 
     // ========================================
@@ -754,8 +676,7 @@ exports.checkout = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message:
-        "Sale completed successfully.",
+      message: "Sale completed successfully.",
 
       sale_id: saleId,
 
@@ -769,37 +690,30 @@ exports.checkout = async (req, res) => {
 
       total_amount: subtotal,
       discount: manualDiscount,
+      discount_percent: usePercent ? discountPct : null,
       tax: taxAmount,
+      tax_percent: usePercent ? taxPct : null,
 
-      points_redeemed:
-        requestedRedeemPoints,
+      points_redeemed: requestedRedeemPoints,
 
-      points_discount:
-        pointsDiscount,
+      points_discount: pointsDiscount,
 
-      payable_amount:
-        finalPayableAmount,
+      payable_amount: finalPayableAmount,
 
       payment_method,
 
       loyalty: {
-        previous_points:
-          previousPoints,
+        previous_points: previousPoints,
 
-        redeemed_points:
-          requestedRedeemPoints,
+        redeemed_points: requestedRedeemPoints,
 
-        redeemed_value:
-          pointsDiscount,
+        redeemed_value: pointsDiscount,
 
-        points_after_redeem:
-          pointsAfterRedeem,
+        points_after_redeem: pointsAfterRedeem,
 
-        earned_points:
-          pointsEarned,
+        earned_points: pointsEarned,
 
-        remaining_points:
-          finalPointsBalance,
+        remaining_points: finalPointsBalance,
       },
     });
   } catch (error) {
@@ -807,26 +721,16 @@ exports.checkout = async (req, res) => {
       try {
         await connection.rollback();
       } catch (rollbackError) {
-        console.error(
-          "Checkout Rollback Error:",
-          rollbackError
-        );
+        console.error("Checkout Rollback Error:", rollbackError);
       }
     }
 
-    console.error(
-      "Checkout Error:",
-      error
-    );
+    console.error("Checkout Error:", error);
 
-    return res
-      .status(error.statusCode || 500)
-      .json({
-        success: false,
-        message:
-          error.message ||
-          "Checkout failed.",
-      });
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message || "Checkout failed.",
+    });
   } finally {
     if (connection) {
       connection.release();
