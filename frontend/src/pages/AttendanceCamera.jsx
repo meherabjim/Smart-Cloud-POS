@@ -3,6 +3,7 @@ import axios from "axios";
 import API_BASE_URL from "../apiConfig";
 import { loadHuman, getFaceDescriptor, cosine } from "../faceClient";
 import "./AttendanceCamera.css";
+import { toast } from "../components/Toast";
 
 // ---- Tunable settings ----
 const SHIFT_START_HOUR = 9;      // shop opens 9:00
@@ -13,7 +14,8 @@ const MATCH_MARGIN = 0.06;       // best must beat 2nd best by this much
 const COOLDOWN_MS = 60000;       // don't re-mark same person within 1 min
 const SCAN_EVERY_MS = 900;       // how often to scan a frame
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
+// Local date (not UTC) as YYYY-MM-DD
+const todayStr = () => new Date().toLocaleDateString("en-CA");
 
 // "14:20:47" -> "2:20 PM"
 const fmtTime = (t) => {
@@ -122,6 +124,7 @@ function AttendanceCamera({ user, activeStoreId }) {
             date: todayStr(),
             status: st,
             check_in_time: new Date().toTimeString().slice(0, 8),
+            source: "face",
           },
           { headers }
         );
@@ -237,10 +240,10 @@ function AttendanceCamera({ user, activeStoreId }) {
         { date: todayStr(), store_id: storeId },
         { headers }
       );
-      alert(res.data.message || "Day closed.");
+      toast(res.data.message || "Day closed.");
       loadToday();
     } catch (err) {
-      alert(err.response?.data?.message || "Close day failed.");
+      toast(err.response?.data?.message || "Close day failed.");
     }
   };
 
@@ -357,4 +360,4 @@ function AttendanceCamera({ user, activeStoreId }) {
   );
 }
 
-export default AttendanceCamera;
+export default AttendanceCamera;

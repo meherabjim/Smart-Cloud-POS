@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import API_BASE_URL from "../apiConfig";
 import "./Stores.css";
+import { toast } from "../components/Toast";
 
 const API = `${API_BASE_URL}/api`;
 
@@ -85,12 +86,12 @@ function Stores() {
     e.preventDefault();
 
     if (!canManageStores) {
-      alert("Viewer has read-only access.");
+      toast("Viewer has read-only access.");
       return;
     }
 
     if (!name.trim() || !location.trim()) {
-      alert("Fill all fields.");
+      toast("Fill all fields.");
       return;
     }
 
@@ -104,12 +105,12 @@ function Stores() {
         config
       );
 
-      alert(res.data.message || "Store added successfully.");
+      toast(res.data.message || "Store added successfully.");
 
       resetForm();
       fetchStores();
     } catch (err) {
-      alert(
+      toast(
         err.response?.data?.message ||
           "Failed to add store."
       );
@@ -135,7 +136,7 @@ function Stores() {
     e.preventDefault();
 
     if (!canManageStores) {
-      alert("Viewer has read-only access.");
+      toast("Viewer has read-only access.");
       return;
     }
 
@@ -144,7 +145,7 @@ function Stores() {
     }
 
     if (!name.trim() || !location.trim()) {
-      alert("Fill all fields.");
+      toast("Fill all fields.");
       return;
     }
 
@@ -158,12 +159,12 @@ function Stores() {
         config
       );
 
-      alert(res.data.message || "Store updated successfully.");
+      toast(res.data.message || "Store updated successfully.");
 
       resetForm();
       fetchStores();
     } catch (err) {
-      alert(
+      toast(
         err.response?.data?.message ||
           "Store update failed."
       );
@@ -172,12 +173,12 @@ function Stores() {
 
   const handleDeleteStore = async (id) => {
     if (!canManageStores) {
-      alert("Viewer has read-only access.");
+      toast("Viewer has read-only access.");
       return;
     }
 
     if (Number(id) === 1) {
-      alert("Main Store cannot be deleted.");
+      toast("Main Store cannot be deleted.");
       return;
     }
 
@@ -195,7 +196,7 @@ function Stores() {
         config
       );
 
-      alert(res.data.message || "Store deleted successfully.");
+      toast(res.data.message || "Store deleted successfully.");
 
       if (Number(activeStoreId) === Number(id)) {
         localStorage.removeItem("activeStoreId");
@@ -204,7 +205,7 @@ function Stores() {
 
       fetchStores();
     } catch (err) {
-      alert(
+      toast(
         err.response?.data?.message ||
           "Store delete failed."
       );
@@ -534,4 +535,4 @@ function Stores() {
   );
 }
 
-export default Stores;
+export default Stores;

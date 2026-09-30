@@ -6,6 +6,16 @@ const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 const db = require("./config/db");
+const {
+  verifyToken,
+  allowRoles,
+} = require("./middleware/authMiddleware");
+
+// Stop early with a clear message if the secret is missing
+if (!process.env.JWT_SECRET) {
+  console.error("❌ JWT_SECRET is missing in .env — server cannot start.");
+  process.exit(1);
+}
 
 const productRoutes = require("./routes/productRoutes");
 const salesRoutes = require("./routes/salesRoutes");
@@ -26,6 +36,9 @@ const payoutRoutes = require("./routes/payoutRoutes");
 
 const app = express();
 
+// Render/Vercel sit behind a proxy: use the real client IP
+app.set("trust proxy", 1);
+
 // ========================================
 // Basic middleware
 // ========================================
@@ -36,71 +49,33 @@ app.use(express.json({ limit: "6mb" }));
 // Serve uploaded face photos (read by the Python attendance terminal)
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// Hide passwords from terminal logs
-app.use((req, res, next) => {
-  const safeBody = { ...req.body };
+// Request log without passwords or huge face data
+const HIDDEN_FIELDS = ["password", "old_password", "new_password", "confirm_password", "token"];
 
-  ["password", "old_password", "new_password"].forEach((field) => {
-    if (safeBody[field] !== undefined) {
-      safeBody[field] = "***hidden***";
-    }
+const shortValue = (value) => {
+  if (Array.isArray(value)) return `[${value.length} items]`;
+  if (typeof value === "string" && value.length > 120) return `[text ${value.length} chars]`;
+  if (value && typeof value === "object") return "[object]";
+  return value;
+};
+
+app.use((req, res, next) => {
+  const safeBody = {};
+
+  Object.entries(req.body || {}).forEach(([key, value]) => {
+    safeBody[key] = HIDDEN_FIELDS.includes(key) ? "***hidden***" : shortValue(value);
   });
 
-  console.log("================================");
-  console.log("METHOD :", req.method);
-  console.log("URL    :", req.originalUrl);
-  console.log("BODY   :", safeBody);
-  console.log("================================");
+  console.log(`${req.method} ${req.originalUrl}`, Object.keys(safeBody).length ? safeBody : "");
 
   next();
 });
 
 // ========================================
 // Authentication middleware
+// verifyToken / allowRoles come from middleware/authMiddleware.js
+// (role, store and status are checked in the database on every request)
 // ========================================
-
-const verifyToken = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({
-      message: "Access denied. Please login first.",
-    });
-  }
-
-  const token = authHeader.split(" ")[1];
-
-  try {
-    req.user = jwt.verify(
-      token,
-      process.env.JWT_SECRET
-    );
-
-    return next();
-  } catch (error) {
-    return res.status(401).json({
-      message: "Invalid or expired token.",
-    });
-  }
-};
-
-const allowRoles = (...roles) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({
-        message: "Unauthorized.",
-      });
-    }
-
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({
-        message: "Forbidden",
-      });
-    }
-
-    return next();
-  };
-};
 
 // Admin and Viewer can read all-store information
 const hasAllStoreReadAccess = (role) => {
@@ -109,16 +84,9 @@ const hasAllStoreReadAccess = (role) => {
 
 // Viewer cannot perform POST, PUT, PATCH or DELETE
 const blockViewerWrites = (req, res, next) => {
-  const readMethods = [
-    "GET",
-    "HEAD",
-    "OPTIONS",
-  ];
+  const readMethods = ["GET", "HEAD", "OPTIONS"];
 
-  if (
-    req.user?.role === "Viewer" &&
-    !readMethods.includes(req.method)
-  ) {
+  if (req.user?.role === "Viewer" && !readMethods.includes(req.method)) {
     return res.status(403).json({
       message: "Demo Viewer has read-only access.",
     });
@@ -139,6 +107,32 @@ app.get("/", (req, res) => {
 // Login
 // ========================================
 
+// Simple brute-force guard: 10 wrong tries per 15 minutes per IP + email
+const loginFails = new Map();
+const LOGIN_LIMIT = 10;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+
+const loginKey = (req, email) => `${req.ip}|${email}`;
+
+const isLoginBlocked = (key) => {
+  const entry = loginFails.get(key);
+  if (!entry) return false;
+  if (Date.now() - entry.first > LOGIN_WINDOW_MS) {
+    loginFails.delete(key);
+    return false;
+  }
+  return entry.count >= LOGIN_LIMIT;
+};
+
+const addLoginFail = (key) => {
+  const entry = loginFails.get(key);
+  if (!entry || Date.now() - entry.first > LOGIN_WINDOW_MS) {
+    loginFails.set(key, { count: 1, first: Date.now() });
+  } else {
+    entry.count += 1;
+  }
+};
+
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -149,31 +143,42 @@ app.post("/api/auth/login", async (req, res) => {
   }
 
   try {
-    const normalizedEmail = String(email)
-      .trim()
-      .toLowerCase();
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const key = loginKey(req, normalizedEmail);
 
-    const [rows] = await db.query(
-      "SELECT * FROM users WHERE email = ?",
-      [normalizedEmail]
-    );
-
-    if (rows.length === 0) {
-      return res.status(401).json({
-        message: "Invalid Email",
+    if (isLoginBlocked(key)) {
+      return res.status(429).json({
+        message: "Too many wrong tries. Please wait 15 minutes.",
       });
     }
 
+    const [rows] = await db.query("SELECT * FROM users WHERE email = ?", [normalizedEmail]);
+
     const user = rows[0];
 
-    const matched = await bcrypt.compare(
-      password,
-      user.password_hash
-    );
+    const matched = user ? await bcrypt.compare(String(password), user.password_hash) : false;
 
+    // Same message for wrong email and wrong password
     if (!matched) {
+      addLoginFail(key);
+
       return res.status(401).json({
-        message: "Invalid Password",
+        message: "Email or password is incorrect.",
+      });
+    }
+
+    loginFails.delete(key);
+
+    // The demo Viewer role has been removed
+    if (user.role === "Viewer") {
+      return res.status(403).json({
+        message: "Viewer accounts are no longer supported.",
+      });
+    }
+
+    if (user.status && user.status !== "Active") {
+      return res.status(403).json({
+        message: "This account is inactive. Contact the Admin.",
       });
     }
 
@@ -187,7 +192,7 @@ app.post("/api/auth/login", async (req, res) => {
       process.env.JWT_SECRET,
       {
         expiresIn: "1d",
-      }
+      },
     );
 
     return res.json({
@@ -204,9 +209,7 @@ app.post("/api/auth/login", async (req, res) => {
     console.error("Login Error:", error);
 
     return res.status(500).json({
-      message:
-        error.message ||
-        "Internal server error",
+      message: error.message || "Internal server error",
     });
   }
 });
@@ -215,13 +218,10 @@ app.post("/api/auth/login", async (req, res) => {
 // Current logged-in user
 // ========================================
 
-app.get(
-  "/api/auth/me",
-  verifyToken,
-  async (req, res) => {
-    try {
-      const [rows] = await db.query(
-        `
+app.get("/api/auth/me", verifyToken, async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `
         SELECT
           id,
           name,
@@ -231,157 +231,114 @@ app.get(
         FROM users
         WHERE id = ?
         `,
-        [req.user.id]
-      );
+      [req.user.id],
+    );
 
-      if (rows.length === 0) {
-        return res.status(404).json({
-          message: "User not found",
-        });
-      }
-
-      return res.json(rows[0]);
-    } catch (error) {
-      console.error(
-        "Auth Me Error:",
-        error
-      );
-
-      return res.status(500).json({
-        message:
-          error.message ||
-          "Internal server error",
+    if (rows.length === 0) {
+      return res.status(404).json({
+        message: "User not found",
       });
     }
+
+    return res.json(rows[0]);
+  } catch (error) {
+    console.error("Auth Me Error:", error);
+
+    return res.status(500).json({
+      message: error.message || "Internal server error",
+    });
   }
-);
+});
 
 // ========================================
 // Change password
 // Viewer is blocked
 // ========================================
 
-app.put(
-  "/api/auth/change-password",
-  verifyToken,
-  blockViewerWrites,
-  async (req, res) => {
-    const {
-      old_password,
-      new_password,
-    } = req.body;
+app.put("/api/auth/change-password", verifyToken, blockViewerWrites, async (req, res) => {
+  const { old_password, new_password } = req.body;
 
-    if (!old_password || !new_password) {
-      return res.status(400).json({
-        message:
-          "Old password and new password both required",
-      });
-    }
+  if (!old_password || !new_password) {
+    return res.status(400).json({
+      message: "Old password and new password both required",
+    });
+  }
 
-    if (String(new_password).length < 6) {
-      return res.status(400).json({
-        message:
-          "New password must be at least 6 characters",
-      });
-    }
+  if (String(new_password).length < 6) {
+    return res.status(400).json({
+      message: "New password must be at least 6 characters",
+    });
+  }
 
-    try {
-      const [rows] = await db.query(
-        `
+  try {
+    const [rows] = await db.query(
+      `
         SELECT password_hash
         FROM users
         WHERE id = ?
         `,
-        [req.user.id]
-      );
+      [req.user.id],
+    );
 
-      if (rows.length === 0) {
-        return res.status(404).json({
-          message: "User not found",
-        });
-      }
+    if (rows.length === 0) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
 
-      const matched = await bcrypt.compare(
-        old_password,
-        rows[0].password_hash
-      );
+    const matched = await bcrypt.compare(old_password, rows[0].password_hash);
 
-      if (!matched) {
-        return res.status(401).json({
-          message:
-            "Old password is incorrect",
-        });
-      }
+    if (!matched) {
+      return res.status(401).json({
+        message: "Old password is incorrect",
+      });
+    }
 
-      const newHash = await bcrypt.hash(
-        new_password,
-        10
-      );
+    const newHash = await bcrypt.hash(new_password, 10);
 
-      await db.query(
-        `
+    await db.query(
+      `
         UPDATE users
         SET password_hash = ?
         WHERE id = ?
         `,
-        [newHash, req.user.id]
-      );
+      [newHash, req.user.id],
+    );
 
-      return res.json({
-        message:
-          "Password changed successfully",
-      });
-    } catch (error) {
-      console.error(
-        "Change Password Error:",
-        error
-      );
+    return res.json({
+      message: "Password changed successfully",
+    });
+  } catch (error) {
+    console.error("Change Password Error:", error);
 
-      return res.status(500).json({
-        message:
-          error.message ||
-          "Internal server error",
-      });
-    }
+    return res.status(500).json({
+      message: error.message || "Internal server error",
+    });
   }
-);
+});
 
 // ========================================
 // Dashboard: today's damaged
 // ========================================
 
-app.get(
-  "/api/dashboard/today-damaged",
-  verifyToken,
-  async (req, res) => {
-    try {
-      let where =
-        "DATE(di.created_at) = CURDATE()";
+app.get("/api/dashboard/today-damaged", verifyToken, async (req, res) => {
+  try {
+    let where = "DATE(di.created_at) = CURDATE()";
 
-      const params = [];
+    const params = [];
 
-      if (
-        !hasAllStoreReadAccess(
-          req.user.role
-        )
-      ) {
-        where +=
-          " AND di.store_id = ?";
+    if (!hasAllStoreReadAccess(req.user.role)) {
+      where += " AND di.store_id = ?";
 
-        params.push(
-          req.user.store_id
-        );
-      } else if (req.query.store_id) {
-        where +=
-          " AND di.store_id = ?";
+      params.push(req.user.store_id);
+    } else if (req.query.store_id) {
+      where += " AND di.store_id = ?";
 
-        params.push(
-          req.query.store_id
-        );
-      }
+      params.push(req.query.store_id);
+    }
 
-      const [rows] = await db.query(
-        `
+    const [rows] = await db.query(
+      `
         SELECT
           IFNULL(
             SUM(di.qty),
@@ -402,71 +359,45 @@ app.get(
 
         WHERE ${where}
         `,
-        params
-      );
+      params,
+    );
 
-      return res.json({
-        today_damaged_qty:
-          Number(
-            rows[0]?.today_damaged_qty
-          ) || 0,
+    return res.json({
+      today_damaged_qty: Number(rows[0]?.today_damaged_qty) || 0,
 
-        today_damaged_value:
-          Number(
-            rows[0]?.today_damaged_value
-          ) || 0,
-      });
-    } catch (error) {
-      console.error(
-        "Today Damaged Error:",
-        error
-      );
+      today_damaged_value: Number(rows[0]?.today_damaged_value) || 0,
+    });
+  } catch (error) {
+    console.error("Today Damaged Error:", error);
 
-      return res.status(500).json({
-        message:
-          error.message ||
-          "Internal server error",
-      });
-    }
+    return res.status(500).json({
+      message: error.message || "Internal server error",
+    });
   }
-);
+});
 
 // ========================================
 // Dashboard: seven-day trend
 // ========================================
 
-app.get(
-  "/api/dashboard/trend",
-  verifyToken,
-  async (req, res) => {
-    try {
-      let where =
-        "created_at >= (CURDATE() - INTERVAL 6 DAY)";
+app.get("/api/dashboard/trend", verifyToken, async (req, res) => {
+  try {
+    let where = "created_at >= (CURDATE() - INTERVAL 6 DAY)";
 
-      const params = [];
+    const params = [];
 
-      if (
-        !hasAllStoreReadAccess(
-          req.user.role
-        )
-      ) {
-        where +=
-          " AND store_id = ?";
+    if (!hasAllStoreReadAccess(req.user.role)) {
+      where += " AND store_id = ?";
 
-        params.push(
-          req.user.store_id
-        );
-      } else if (req.query.store_id) {
-        where +=
-          " AND store_id = ?";
+      params.push(req.user.store_id);
+    } else if (req.query.store_id) {
+      where += " AND store_id = ?";
 
-        params.push(
-          req.query.store_id
-        );
-      }
+      params.push(req.query.store_id);
+    }
 
-      const [rows] = await db.query(
-        `
+    const [rows] = await db.query(
+      `
         SELECT
           DATE_FORMAT(
             created_at,
@@ -491,121 +422,82 @@ app.get(
 
         ORDER BY sale_date ASC
         `,
-        params
-      );
+      params,
+    );
 
-      const formatLocalDate = (
-        date
-      ) => {
-        const year =
-          date.getFullYear();
+    const formatLocalDate = (date) => {
+      const year = date.getFullYear();
 
-        const month = String(
-          date.getMonth() + 1
-        ).padStart(2, "0");
+      const month = String(date.getMonth() + 1).padStart(2, "0");
 
-        const day = String(
-          date.getDate()
-        ).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
 
-        return `${year}-${month}-${day}`;
-      };
+      return `${year}-${month}-${day}`;
+    };
 
-      const result = [];
+    const result = [];
 
-      for (
-        let i = 6;
-        i >= 0;
-        i -= 1
-      ) {
-        const date = new Date();
+    for (let i = 6; i >= 0; i -= 1) {
+      const date = new Date();
 
-        date.setDate(
-          date.getDate() - i
-        );
+      date.setDate(date.getDate() - i);
 
-        const dateString =
-          formatLocalDate(date);
+      const dateString = formatLocalDate(date);
 
-        const found = rows.find(
-          (row) =>
-            row.sale_date ===
-            dateString
-        );
+      const found = rows.find((row) => row.sale_date === dateString);
 
-        result.push({
-          date: dateString,
+      result.push({
+        date: dateString,
 
-          total_sales: found
-            ? Number(
-                found.total_sales
-              )
-            : 0,
+        total_sales: found ? Number(found.total_sales) : 0,
 
-          order_count: found
-            ? Number(
-                found.order_count
-              )
-            : 0,
-        });
-      }
-
-      return res.json(result);
-    } catch (error) {
-      console.error(
-        "Dashboard Trend Error:",
-        error
-      );
-
-      return res.status(500).json({
-        message:
-          error.message ||
-          "Internal server error",
+        order_count: found ? Number(found.order_count) : 0,
       });
     }
+
+    return res.json(result);
+  } catch (error) {
+    console.error("Dashboard Trend Error:", error);
+
+    return res.status(500).json({
+      message: error.message || "Internal server error",
+    });
   }
-);
+});
 
 // ========================================
 // Dashboard: all-store breakdown
 // Admin and Viewer can read
 // ========================================
 
-app.get(
-  "/api/dashboard/store-breakdown",
-  verifyToken,
-  allowRoles("Admin", "Viewer"),
-  async (req, res) => {
-    try {
-      const [storeRows] =
-        await db.query(
-          `
+app.get("/api/dashboard/store-breakdown", verifyToken, allowRoles("Admin", "Viewer"), async (req, res) => {
+  try {
+    const [storeRows] = await db.query(
+      `
           SELECT id, name
           FROM stores
           ORDER BY id ASC
-          `
-        );
+          `,
+    );
 
-      const stores = [];
+    const stores = [];
 
-      let totalDamagedAllStores = 0;
-      let totalDamagedValueAllStores = 0;
+    let totalDamagedAllStores = 0;
+    let totalDamagedValueAllStores = 0;
 
-      for (const store of storeRows) {
-        const [productRows] =
-          await db.query(
-            `
+    for (const store of storeRows) {
+      const [productRows] = await db.query(
+        `
             SELECT
               COUNT(*) AS product_count
             FROM products
             WHERE store_id = ?
             `,
-            [store.id]
-          );
+        [store.id],
+      );
 
-        const [salesRows] =
-          await db.query(
-            `
+      const [salesRows] = await db.query(
+        `
             SELECT
               IFNULL(
                 SUM(payable_amount),
@@ -618,12 +510,11 @@ app.get(
 
             WHERE store_id = ?
             `,
-            [store.id]
-          );
+        [store.id],
+      );
 
-        const [damagedRows] =
-          await db.query(
-            `
+      const [damagedRows] = await db.query(
+        `
             SELECT
               IFNULL(
                 SUM(di.qty),
@@ -646,80 +537,48 @@ app.get(
 
             WHERE di.store_id = ?
             `,
-            [store.id]
-          );
-
-        const damagedCount =
-          Number(
-            damagedRows[0]
-              ?.total_damaged_qty
-          ) || 0;
-
-        const damagedValue =
-          Number(
-            damagedRows[0]
-              ?.total_damaged_value
-          ) || 0;
-
-        totalDamagedAllStores +=
-          damagedCount;
-
-        totalDamagedValueAllStores +=
-          damagedValue;
-
-        stores.push({
-          store_id: store.id,
-          store_name: store.name,
-
-          product_count:
-            Number(
-              productRows[0]
-                ?.product_count
-            ) || 0,
-
-          total_revenue:
-            Number(
-              salesRows[0]
-                ?.total_revenue
-            ) || 0,
-
-          total_orders:
-            Number(
-              salesRows[0]
-                ?.total_orders
-            ) || 0,
-
-          damaged_count:
-            damagedCount,
-
-          damaged_value:
-            damagedValue,
-        });
-      }
-
-      return res.json({
-        stores,
-
-        total_damaged_all_stores:
-          totalDamagedAllStores,
-
-        total_damaged_value_all_stores:
-          totalDamagedValueAllStores,
-      });
-    } catch (error) {
-      console.error(
-        "Store Breakdown Error:",
-        error
+        [store.id],
       );
 
-      return res.status(500).json({
-        message:
-          error.message ||
-          "Internal server error",
+      const damagedCount = Number(damagedRows[0]?.total_damaged_qty) || 0;
+
+      const damagedValue = Number(damagedRows[0]?.total_damaged_value) || 0;
+
+      totalDamagedAllStores += damagedCount;
+
+      totalDamagedValueAllStores += damagedValue;
+
+      stores.push({
+        store_id: store.id,
+        store_name: store.name,
+
+        product_count: Number(productRows[0]?.product_count) || 0,
+
+        total_revenue: Number(salesRows[0]?.total_revenue) || 0,
+
+        total_orders: Number(salesRows[0]?.total_orders) || 0,
+
+        damaged_count: damagedCount,
+
+        damaged_value: damagedValue,
       });
     }
+
+    return res.json({
+      stores,
+
+      total_damaged_all_stores: totalDamagedAllStores,
+
+      total_damaged_value_all_stores: totalDamagedValueAllStores,
+    });
+  } catch (error) {
+    console.error("Store Breakdown Error:", error);
+
+    return res.status(500).json({
+      message: error.message || "Internal server error",
+    });
   }
-);
+});
 
 // ========================================
 // Users (all workers): ADMIN ONLY
@@ -728,17 +587,13 @@ app.get(
 // ?year=&month= picks the attendance month (default: current month).
 // ========================================
 
-app.get(
-  "/api/users",
-  verifyToken,
-  allowRoles("Admin"),
-  async (req, res) => {
-    try {
-      const now = new Date();
-      const year = Number(req.query.year) || now.getFullYear();
-      const month = Number(req.query.month) || now.getMonth() + 1;
+app.get("/api/users", verifyToken, allowRoles("Admin"), async (req, res) => {
+  try {
+    const now = new Date();
+    const year = Number(req.query.year) || now.getFullYear();
+    const month = Number(req.query.month) || now.getMonth() + 1;
 
-      let sql = `
+    let sql = `
         SELECT
           u.id,
           u.name,
@@ -768,185 +623,139 @@ app.get(
           AND MONTH(a.date) = ?
       `;
 
-      const params = [year, month];
+    const params = [year, month];
 
-      if (req.query.store_id && req.query.store_id !== "all") {
-        sql += " WHERE u.store_id = ?";
-        params.push(Number(req.query.store_id));
-      }
+    if (req.query.store_id && req.query.store_id !== "all") {
+      sql += " WHERE u.store_id = ?";
+      params.push(Number(req.query.store_id));
+    }
 
-      sql += `
+    sql += `
         GROUP BY u.id, u.name, u.email, u.role, u.store_id, s.name,
                  u.status, u.salary, u.face_registered,
                  sa.method, sa.account_no, sa.bank_name
         ORDER BY s.name ASC, u.name ASC
       `;
 
-      const [rows] = await db.query(sql, params);
+    const [rows] = await db.query(sql, params);
 
-      return res.json(
-        rows.map((r) => {
-          const method = r.pay_method;
-          const masked = r.pay_account_no
-            ? `••••${String(r.pay_account_no).slice(-4)}`
-            : "";
-          let payLabel = "Not set";
-          if (method === "Cash") payLabel = "Cash";
-          else if (method === "Bank") payLabel = `Bank${r.pay_bank_name ? ` (${r.pay_bank_name})` : ""} ${masked}`;
-          else if (method) payLabel = `${method} ${masked}`;
+    return res.json(
+      rows.map((r) => {
+        const method = r.pay_method;
+        const masked = r.pay_account_no ? `••••${String(r.pay_account_no).slice(-4)}` : "";
+        let payLabel = "Not set";
+        if (method === "Cash") payLabel = "Cash";
+        else if (method === "Bank")
+          payLabel = `Bank${r.pay_bank_name ? ` (${r.pay_bank_name})` : ""} ${masked}`;
+        else if (method) payLabel = `${method} ${masked}`;
 
-          return {
-            id: r.id,
-            name: r.name,
-            email: r.email,
-            role: r.role,
-            store_id: r.store_id,
-            store_name: r.store_name,
-            status: r.status,
-            salary: Number(r.salary) || 0,
-            face_registered: Number(r.face_registered) === 1,
-            pay_method: method || null,
-            pay_label: payLabel,
-            pending_change: Number(r.pending_change) > 0,
-            present_days: Number(r.present_days) || 0,
-            late_days: Number(r.late_days) || 0,
-            absent_days: Number(r.absent_days) || 0,
-            leave_days: Number(r.leave_days) || 0,
-            year,
-            month,
-          };
-        })
-      );
-    } catch (error) {
-      console.error(
-        "Get Users Error:",
-        error
-      );
+        return {
+          id: r.id,
+          name: r.name,
+          email: r.email,
+          role: r.role,
+          store_id: r.store_id,
+          store_name: r.store_name,
+          status: r.status,
+          salary: Number(r.salary) || 0,
+          face_registered: Number(r.face_registered) === 1,
+          pay_method: method || null,
+          pay_label: payLabel,
+          pending_change: Number(r.pending_change) > 0,
+          present_days: Number(r.present_days) || 0,
+          late_days: Number(r.late_days) || 0,
+          absent_days: Number(r.absent_days) || 0,
+          leave_days: Number(r.leave_days) || 0,
+          year,
+          month,
+        };
+      }),
+    );
+  } catch (error) {
+    console.error("Get Users Error:", error);
 
-      return res.status(500).json({
-        message:
-          error.message ||
-          "Internal server error",
-      });
-    }
+    return res.status(500).json({
+      message: error.message || "Internal server error",
+    });
   }
-);
+});
 
 // ========================================
 // Add user
 // Viewer cannot add
 // ========================================
 
-app.post(
-  "/api/users/add",
-  verifyToken,
-  allowRoles(
-    "Admin",
-    "Manager"
-  ),
-  async (req, res) => {
-    try {
-      const {
-        name,
-        email,
-        password,
-        role,
-        store_id,
-      } = req.body;
+app.post("/api/users/add", verifyToken, allowRoles("Admin", "Manager"), async (req, res) => {
+  try {
+    const { name, email, password, role, store_id } = req.body;
 
-      if (
-        !name ||
-        !email ||
-        !password ||
-        !role
-      ) {
-        return res.status(400).json({
-          message:
-            "Name, email, password and role are required",
-        });
-      }
+    if (!name || !email || !password || !role) {
+      return res.status(400).json({
+        message: "Name, email, password and role are required",
+      });
+    }
 
-      if (
-        String(password).length < 6
-      ) {
-        return res.status(400).json({
-          message:
-            "Password must be at least 6 characters",
-        });
-      }
+    if (String(password).length < 6) {
+      return res.status(400).json({
+        message: "Password must be at least 6 characters",
+      });
+    }
 
-      const adminAllowedRoles = [
-        "Manager",
-        "Cashier",
-        "Store Keeper",
-        "Viewer",
-      ];
+    const adminAllowedRoles = ["Manager", "Cashier", "Store Keeper"];
 
-      const managerAllowedRoles = [
-        "Cashier",
-        "Store Keeper",
-      ];
+    const managerAllowedRoles = ["Cashier", "Store Keeper"];
 
-      const allowedUserRoles =
-        req.user.role === "Admin"
-          ? adminAllowedRoles
-          : managerAllowedRoles;
+    const allowedUserRoles = req.user.role === "Admin" ? adminAllowedRoles : managerAllowedRoles;
 
-      if (
-        !allowedUserRoles.includes(
-          role
-        )
-      ) {
-        return res.status(403).json({
-          message:
-            "You cannot create a user with this role",
-        });
-      }
+    if (!allowedUserRoles.includes(role)) {
+      return res.status(403).json({
+        message: "You cannot create a user with this role",
+      });
+    }
 
-      const normalizedEmail =
-        String(email)
-          .trim()
-          .toLowerCase();
+    const normalizedEmail = String(email).trim().toLowerCase();
 
-      const [existingUsers] =
-        await db.query(
-          `
+    const [existingUsers] = await db.query(
+      `
           SELECT id
           FROM users
           WHERE email = ?
           `,
-          [normalizedEmail]
-        );
+      [normalizedEmail],
+    );
 
-      if (
-        existingUsers.length > 0
-      ) {
-        return res.status(400).json({
-          message:
-            "Email already exists",
-        });
-      }
+    if (existingUsers.length > 0) {
+      return res.status(400).json({
+        message: "Email already exists",
+      });
+    }
 
-      const finalStore =
-        req.user.role === "Admin"
-          ? Number(store_id)
-          : req.user.store_id;
+    const finalStore = req.user.role === "Admin" ? Number(store_id) : Number(req.user.store_id);
 
-      if (!finalStore) {
-        return res.status(400).json({
-          message:
-            "A valid store is required",
-        });
-      }
+    if (!finalStore) {
+      return res.status(400).json({
+        message: "A valid store is required",
+      });
+    }
 
-      const passwordHash =
-        await bcrypt.hash(
-          password,
-          10
-        );
+    const [storeRows] = await db.query("SELECT id FROM stores WHERE id = ? LIMIT 1", [finalStore]);
 
-      await db.query(
-        `
+    if (storeRows.length === 0) {
+      return res.status(400).json({
+        message: "Selected store was not found",
+      });
+    }
+
+    if (!String(name).trim()) {
+      return res.status(400).json({
+        message: "Name is required",
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    await db.query(
+      `
         INSERT INTO users
         (
           name,
@@ -957,372 +766,317 @@ app.post(
         )
         VALUES (?, ?, ?, ?, ?)
         `,
-        [
-          String(name).trim(),
-          normalizedEmail,
-          passwordHash,
-          role,
-          finalStore,
-        ]
-      );
+      [String(name).trim(), normalizedEmail, passwordHash, role, finalStore],
+    );
 
-      return res.json({
-        message:
-          "User added successfully",
-      });
-    } catch (error) {
-      console.error(
-        "Add User Error:",
-        error
-      );
+    return res.json({
+      message: "User added successfully",
+    });
+  } catch (error) {
+    console.error("Add User Error:", error);
 
-      return res.status(500).json({
-        message:
-          error.message ||
-          "Internal server error",
-      });
-    }
+    return res.status(500).json({
+      message: error.message || "Internal server error",
+    });
   }
-);
+});
+
+// ========================================
+// Edit worker: change role and/or store (Admin only)
+// Keeps the same account, face, salary and attendance history.
+// ========================================
+
+app.put("/api/users/:id", verifyToken, allowRoles("Admin"), async (req, res) => {
+  try {
+    const targetId = Number(req.params.id);
+    const role = String(req.body.role || "").trim();
+    const storeId = Number(req.body.store_id);
+
+    const editableRoles = ["Manager", "Cashier", "Store Keeper"];
+
+    if (!editableRoles.includes(role)) {
+      return res.status(400).json({ message: "Role must be Manager, Cashier or Store Keeper." });
+    }
+
+    if (targetId === Number(req.user.id)) {
+      return res.status(400).json({ message: "You cannot change your own role or store." });
+    }
+
+    const [users] = await db.query("SELECT id, role FROM users WHERE id = ? LIMIT 1", [targetId]);
+
+    if (users.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (users[0].role === "Admin" || targetId === 1 || targetId === 2) {
+      return res.status(400).json({ message: "Admin accounts cannot be edited here." });
+    }
+
+    const [stores] = await db.query("SELECT id FROM stores WHERE id = ? LIMIT 1", [storeId]);
+
+    if (stores.length === 0) {
+      return res.status(400).json({ message: "Please choose a valid store." });
+    }
+
+    await db.query("UPDATE users SET role = ?, store_id = ? WHERE id = ?", [role, storeId, targetId]);
+
+    return res.json({
+      message: "Worker updated. The new role/store works from their next click.",
+    });
+  } catch (error) {
+    console.error("Edit User Error:", error);
+
+    return res.status(500).json({ message: error.message || "Internal server error" });
+  }
+});
 
 // ========================================
 // Delete user
 // Admin only
 // ========================================
 
-app.delete(
-  "/api/users/:id",
-  verifyToken,
-  allowRoles("Admin"),
-  async (req, res) => {
-    try {
-      const targetId = Number(
-        req.params.id
-      );
+app.delete("/api/users/:id", verifyToken, allowRoles("Admin"), async (req, res) => {
+  try {
+    const targetId = Number(req.params.id);
 
-      if (
-        targetId === 1 ||
-        targetId === 2
-      ) {
-        return res.status(400).json({
-          message:
-            "Main admin cannot be deleted for system safety!",
-        });
-      }
+    if (targetId === 1 || targetId === 2) {
+      return res.status(400).json({
+        message: "Main admin cannot be deleted for system safety!",
+      });
+    }
 
-      if (
-        targetId ===
-        Number(req.user.id)
-      ) {
-        return res.status(400).json({
-          message:
-            "You cannot delete your own account.",
-        });
-      }
+    if (targetId === Number(req.user.id)) {
+      return res.status(400).json({
+        message: "You cannot delete your own account.",
+      });
+    }
 
-      const [result] =
-        await db.query(
-          `
+    const [targetRows] = await db.query("SELECT role FROM users WHERE id = ? LIMIT 1", [targetId]);
+
+    if (targetRows[0]?.role === "Admin") {
+      return res.status(400).json({
+        message: "Admin accounts cannot be deleted.",
+      });
+    }
+
+    const [result] = await db.query(
+      `
           DELETE FROM users
           WHERE id = ?
           `,
-          [targetId]
-        );
+      [targetId],
+    );
 
-      if (
-        result.affectedRows === 0
-      ) {
-        return res.status(404).json({
-          message: "User not found",
-        });
-      }
-
-      return res.json({
-        message:
-          "User Deleted Successfully",
-      });
-    } catch (error) {
-      console.error(
-        "Delete User Error:",
-        error
-      );
-
-      return res.status(500).json({
-        message:
-          error.message ||
-          "Internal server error",
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        message: "User not found",
       });
     }
+
+    return res.json({
+      message: "User Deleted Successfully",
+    });
+  } catch (error) {
+    console.error("Delete User Error:", error);
+
+    return res.status(500).json({
+      message: error.message || "Internal server error",
+    });
   }
-);
+});
 
 // ========================================
 // Stores: Viewer can read all stores
 // ========================================
 
-app.get(
-  "/api/stores",
-  verifyToken,
-  async (req, res) => {
-    try {
-      let sql = `
+app.get("/api/stores", verifyToken, async (req, res) => {
+  try {
+    let sql = `
         SELECT *
         FROM stores
       `;
 
-      const params = [];
+    const params = [];
 
-      if (
-        !hasAllStoreReadAccess(
-          req.user.role
-        )
-      ) {
-        sql += " WHERE id = ?";
+    if (!hasAllStoreReadAccess(req.user.role)) {
+      sql += " WHERE id = ?";
 
-        params.push(
-          req.user.store_id
-        );
-      }
-
-      sql += " ORDER BY id ASC";
-
-      const [rows] =
-        await db.query(
-          sql,
-          params
-        );
-
-      return res.json(rows);
-    } catch (error) {
-      console.error(
-        "Get Stores Error:",
-        error
-      );
-
-      return res.status(500).json({
-        message:
-          error.message ||
-          "Internal server error",
-      });
+      params.push(req.user.store_id);
     }
+
+    sql += " ORDER BY id ASC";
+
+    const [rows] = await db.query(sql, params);
+
+    return res.json(rows);
+  } catch (error) {
+    console.error("Get Stores Error:", error);
+
+    return res.status(500).json({
+      message: error.message || "Internal server error",
+    });
   }
-);
+});
 
 // ========================================
 // Add store
 // Admin only
 // ========================================
 
-app.post(
-  "/api/stores/add",
-  verifyToken,
-  allowRoles("Admin"),
-  async (req, res) => {
-    try {
-      const {
-        name,
-        location,
-      } = req.body;
+app.post("/api/stores/add", verifyToken, allowRoles("Admin"), async (req, res) => {
+  try {
+    const { name, location } = req.body;
 
-      if (!name || !location) {
-        return res.status(400).json({
-          message:
-            "Name and location are required",
-        });
-      }
+    if (!name || !location) {
+      return res.status(400).json({
+        message: "Name and location are required",
+      });
+    }
 
-      await db.query(
-        `
+    await db.query(
+      `
         INSERT INTO stores
         (name, location)
         VALUES (?, ?)
         `,
-        [
-          String(name).trim(),
-          String(location).trim(),
-        ]
-      );
+      [String(name).trim(), String(location).trim()],
+    );
 
-      return res.json({
-        message:
-          "Store Added Successfully",
-      });
-    } catch (error) {
-      console.error(
-        "Add Store Error:",
-        error
-      );
+    return res.json({
+      message: "Store Added Successfully",
+    });
+  } catch (error) {
+    console.error("Add Store Error:", error);
 
-      return res.status(500).json({
-        message:
-          error.message ||
-          "Internal server error",
-      });
-    }
+    return res.status(500).json({
+      message: error.message || "Internal server error",
+    });
   }
-);
+});
 
 // ========================================
 // Update store
 // Admin only
 // ========================================
 
-app.put(
-  "/api/stores/:id",
-  verifyToken,
-  allowRoles("Admin"),
-  async (req, res) => {
-    try {
-      const {
-        name,
-        location,
-      } = req.body;
+app.put("/api/stores/:id", verifyToken, allowRoles("Admin"), async (req, res) => {
+  try {
+    const { name, location } = req.body;
 
-      if (!name || !location) {
-        return res.status(400).json({
-          message:
-            "Name and location are required",
-        });
-      }
+    if (!name || !location) {
+      return res.status(400).json({
+        message: "Name and location are required",
+      });
+    }
 
-      const [result] =
-        await db.query(
-          `
+    const [result] = await db.query(
+      `
           UPDATE stores
           SET
             name = ?,
             location = ?
           WHERE id = ?
           `,
-          [
-            String(name).trim(),
-            String(location).trim(),
-            req.params.id,
-          ]
-        );
+      [String(name).trim(), String(location).trim(), req.params.id],
+    );
 
-      if (
-        result.affectedRows === 0
-      ) {
-        return res.status(404).json({
-          message: "Store not found",
-        });
-      }
-
-      return res.json({
-        message:
-          "Store Updated Successfully",
-      });
-    } catch (error) {
-      console.error(
-        "Update Store Error:",
-        error
-      );
-
-      return res.status(500).json({
-        message:
-          error.message ||
-          "Internal server error",
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        message: "Store not found",
       });
     }
+
+    return res.json({
+      message: "Store Updated Successfully",
+    });
+  } catch (error) {
+    console.error("Update Store Error:", error);
+
+    return res.status(500).json({
+      message: error.message || "Internal server error",
+    });
   }
-);
+});
 
 // ========================================
 // Delete store
 // Admin only
 // ========================================
 
-app.delete(
-  "/api/stores/:id",
-  verifyToken,
-  allowRoles("Admin"),
-  async (req, res) => {
-    try {
-      const storeId = Number(
-        req.params.id
-      );
+app.delete("/api/stores/:id", verifyToken, allowRoles("Admin"), async (req, res) => {
+  try {
+    const storeId = Number(req.params.id);
 
-      if (storeId === 1) {
-        return res.status(400).json({
-          message:
-            "Main Store cannot be deleted",
-        });
-      }
+    if (storeId === 1) {
+      return res.status(400).json({
+        message: "Main Store cannot be deleted",
+      });
+    }
 
-      const [result] =
-        await db.query(
-          `
+    // A store that still has products, sales or staff cannot be deleted
+    const [[usage]] = await db.query(
+      `
+        SELECT
+          (SELECT COUNT(*) FROM products WHERE store_id = ?) AS products,
+          (SELECT COUNT(*) FROM sales WHERE store_id = ?) AS sales,
+          (SELECT COUNT(*) FROM users WHERE store_id = ?) AS staff
+      `,
+      [storeId, storeId, storeId],
+    );
+
+    if (Number(usage.products) || Number(usage.sales) || Number(usage.staff)) {
+      return res.status(400).json({
+        message: `This store still has ${usage.products} product(s), ${usage.sales} sale(s) and ${usage.staff} staff. Move or remove them first.`,
+      });
+    }
+
+    const [result] = await db.query(
+      `
           DELETE FROM stores
           WHERE id = ?
           `,
-          [storeId]
-        );
+      [storeId],
+    );
 
-      if (
-        result.affectedRows === 0
-      ) {
-        return res.status(404).json({
-          message: "Store not found",
-        });
-      }
-
-      return res.json({
-        message:
-          "Store Deleted Successfully",
-      });
-    } catch (error) {
-      console.error(
-        "Delete Store Error:",
-        error
-      );
-
-      return res.status(500).json({
-        message:
-          error.message ||
-          "Internal server error",
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        message: "Store not found",
       });
     }
+
+    return res.json({
+      message: "Store Deleted Successfully",
+    });
+  } catch (error) {
+    console.error("Delete Store Error:", error);
+
+    return res.status(500).json({
+      message: error.message || "Internal server error",
+    });
   }
-);
+});
 
 // ========================================
 // Reports summary
 // ========================================
 
-app.get(
-  "/api/reports/summary",
-  verifyToken,
-  async (req, res) => {
-    try {
-      let where = "";
-      const params = [];
+app.get("/api/reports/summary", verifyToken, async (req, res) => {
+  try {
+    let where = "";
+    const params = [];
 
-      if (
-        !hasAllStoreReadAccess(
-          req.user.role
-        )
-      ) {
-        where =
-          "WHERE store_id = ?";
+    if (!hasAllStoreReadAccess(req.user.role)) {
+      where = "WHERE store_id = ?";
 
-        params.push(
-          req.user.store_id
-        );
-      } else if (
-        req.query.store_id
-      ) {
-        where =
-          "WHERE store_id = ?";
+      params.push(req.user.store_id);
+    } else if (req.query.store_id) {
+      where = "WHERE store_id = ?";
 
-        params.push(
-          req.query.store_id
-        );
-      }
+      params.push(req.query.store_id);
+    }
 
-      const [sales] =
-        await db.query(
-          `
+    const [sales] = await db.query(
+      `
           SELECT
             COUNT(*) AS total_orders,
 
@@ -1335,12 +1089,11 @@ app.get(
 
           ${where}
           `,
-          params
-        );
+      params,
+    );
 
-      const [payments] =
-        await db.query(
-          `
+    const [payments] = await db.query(
+      `
           SELECT
             payment_method,
 
@@ -1355,135 +1108,73 @@ app.get(
 
           GROUP BY payment_method
           `,
-          params
-        );
+      params,
+    );
 
-      let cashSales = 0;
-      let bkashSales = 0;
-      let cardSales = 0;
+    let cashSales = 0;
+    let bkashSales = 0;
+    let cardSales = 0;
 
-      payments.forEach(
-        (payment) => {
-          if (
-            payment.payment_method ===
-            "Cash"
-          ) {
-            cashSales =
-              Number(
-                payment.total
-              ) || 0;
-          }
+    payments.forEach((payment) => {
+      if (payment.payment_method === "Cash") {
+        cashSales = Number(payment.total) || 0;
+      }
 
-          if (
-            payment.payment_method ===
-            "Bkash"
-          ) {
-            bkashSales =
-              Number(
-                payment.total
-              ) || 0;
-          }
+      if (payment.payment_method === "Bkash") {
+        bkashSales = Number(payment.total) || 0;
+      }
 
-          if (
-            payment.payment_method ===
-            "Card"
-          ) {
-            cardSales =
-              Number(
-                payment.total
-              ) || 0;
-          }
-        }
-      );
+      if (payment.payment_method === "Card") {
+        cardSales = Number(payment.total) || 0;
+      }
+    });
 
-      return res.json({
-        total_sales:
-          Number(
-            sales[0]?.total_sales
-          ) || 0,
+    return res.json({
+      total_sales: Number(sales[0]?.total_sales) || 0,
 
-        total_orders:
-          Number(
-            sales[0]?.total_orders
-          ) || 0,
+      total_orders: Number(sales[0]?.total_orders) || 0,
 
-        cash_sales: cashSales,
-        bkash_sales: bkashSales,
-        card_sales: cardSales,
-      });
-    } catch (error) {
-      console.error(
-        "Reports Summary Error:",
-        error
-      );
+      cash_sales: cashSales,
+      bkash_sales: bkashSales,
+      card_sales: cardSales,
+    });
+  } catch (error) {
+    console.error("Reports Summary Error:", error);
 
-      return res.status(500).json({
-        message:
-          error.message ||
-          "Internal server error",
-      });
-    }
+    return res.status(500).json({
+      message: error.message || "Internal server error",
+    });
   }
-);
+});
 
 // ========================================
 // Monthly report
 // ========================================
 
-app.get(
-  "/api/reports/monthly",
-  verifyToken,
-  async (req, res) => {
-    try {
-      const now = new Date();
+app.get("/api/reports/monthly", verifyToken, async (req, res) => {
+  try {
+    const now = new Date();
 
-      const year =
-        req.query.year
-          ? Number(
-              req.query.year
-            )
-          : now.getFullYear();
+    const year = req.query.year ? Number(req.query.year) : now.getFullYear();
 
-      const month =
-        req.query.month
-          ? Number(
-              req.query.month
-            )
-          : now.getMonth() + 1;
+    const month = req.query.month ? Number(req.query.month) : now.getMonth() + 1;
 
-      let salesWhere =
-        "YEAR(created_at) = ? AND MONTH(created_at) = ?";
+    let salesWhere = "YEAR(created_at) = ? AND MONTH(created_at) = ?";
 
-      const salesParams = [
-        year,
-        month,
-      ];
+    const salesParams = [year, month];
 
-      if (
-        !hasAllStoreReadAccess(
-          req.user.role
-        )
-      ) {
-        salesWhere +=
-          " AND store_id = ?";
+    if (!hasAllStoreReadAccess(req.user.role)) {
+      salesWhere += " AND store_id = ?";
 
-        salesParams.push(
-          req.user.store_id
-        );
-      } else if (
-        req.query.store_id
-      ) {
-        salesWhere +=
-          " AND store_id = ?";
+      salesParams.push(req.user.store_id);
+    } else if (req.query.store_id) {
+      salesWhere += " AND store_id = ?";
 
-        salesParams.push(
-          req.query.store_id
-        );
-      }
+      salesParams.push(req.query.store_id);
+    }
 
-      const [salesRows] =
-        await db.query(
-          `
+    const [salesRows] = await db.query(
+      `
           SELECT
             IFNULL(
               SUM(payable_amount),
@@ -1496,12 +1187,11 @@ app.get(
 
           WHERE ${salesWhere}
           `,
-          salesParams
-        );
+      salesParams,
+    );
 
-      const [paymentRows] =
-        await db.query(
-          `
+    const [paymentRows] = await db.query(
+      `
           SELECT
             payment_method,
 
@@ -1516,42 +1206,25 @@ app.get(
 
           GROUP BY payment_method
           `,
-          salesParams
-        );
+      salesParams,
+    );
 
-      let damagedWhere =
-        "YEAR(di.created_at) = ? AND MONTH(di.created_at) = ?";
+    let damagedWhere = "YEAR(di.created_at) = ? AND MONTH(di.created_at) = ?";
 
-      const damagedParams = [
-        year,
-        month,
-      ];
+    const damagedParams = [year, month];
 
-      if (
-        !hasAllStoreReadAccess(
-          req.user.role
-        )
-      ) {
-        damagedWhere +=
-          " AND di.store_id = ?";
+    if (!hasAllStoreReadAccess(req.user.role)) {
+      damagedWhere += " AND di.store_id = ?";
 
-        damagedParams.push(
-          req.user.store_id
-        );
-      } else if (
-        req.query.store_id
-      ) {
-        damagedWhere +=
-          " AND di.store_id = ?";
+      damagedParams.push(req.user.store_id);
+    } else if (req.query.store_id) {
+      damagedWhere += " AND di.store_id = ?";
 
-        damagedParams.push(
-          req.query.store_id
-        );
-      }
+      damagedParams.push(req.query.store_id);
+    }
 
-      const [damagedRows] =
-        await db.query(
-          `
+    const [damagedRows] = await db.query(
+      `
           SELECT
             IFNULL(
               SUM(di.qty),
@@ -1574,119 +1247,59 @@ app.get(
 
           WHERE ${damagedWhere}
           `,
-          damagedParams
-        );
+      damagedParams,
+    );
 
-      const totalSales =
-        Number(
-          salesRows[0]
-            ?.total_sales
-        ) || 0;
+    const totalSales = Number(salesRows[0]?.total_sales) || 0;
 
-      const totalDamagedValue =
-        Number(
-          damagedRows[0]
-            ?.total_damaged_value
-        ) || 0;
+    const totalDamagedValue = Number(damagedRows[0]?.total_damaged_value) || 0;
 
-      return res.json({
-        year,
-        month,
+    return res.json({
+      year,
+      month,
 
-        total_sales:
-          totalSales,
+      total_sales: totalSales,
 
-        total_orders:
-          Number(
-            salesRows[0]
-              ?.total_orders
-          ) || 0,
+      total_orders: Number(salesRows[0]?.total_orders) || 0,
 
-        payment_summary:
-          paymentRows.map(
-            (payment) => ({
-              payment_method:
-                payment.payment_method,
+      payment_summary: paymentRows.map((payment) => ({
+        payment_method: payment.payment_method,
 
-              amount:
-                Number(
-                  payment.total
-                ) || 0,
-            })
-          ),
+        amount: Number(payment.total) || 0,
+      })),
 
-        total_damaged_qty:
-          Number(
-            damagedRows[0]
-              ?.total_damaged_qty
-          ) || 0,
+      total_damaged_qty: Number(damagedRows[0]?.total_damaged_qty) || 0,
 
-        total_damaged_value:
-          totalDamagedValue,
+      total_damaged_value: totalDamagedValue,
 
-        net_amount:
-          totalSales -
-          totalDamagedValue,
-      });
-    } catch (error) {
-      console.error(
-        "Monthly Report Error:",
-        error
-      );
+      net_amount: totalSales - totalDamagedValue,
+    });
+  } catch (error) {
+    console.error("Monthly Report Error:", error);
 
-      return res.status(500).json({
-        message:
-          error.message ||
-          "Internal server error",
-      });
-    }
+    return res.status(500).json({
+      message: error.message || "Internal server error",
+    });
   }
-);
+});
 
 // ========================================
 // Existing route files
 // ========================================
-app.use(
-  "/api/customers",
-  customerRoutes
-);
+app.use("/api/customers", customerRoutes);
 
-app.use(
-  "/api/products",
-  productRoutes
-);
+app.use("/api/products", productRoutes);
 
-app.use(
-  "/api/sales",
-  salesRoutes
-);
+app.use("/api/sales", salesRoutes);
 
 // Dashboard stats now requires login
-app.use(
-  "/api/dashboard",
-  verifyToken,
-  dashboardRoutes
-);
+app.use("/api/dashboard", verifyToken, dashboardRoutes);
 
-app.use(
-  "/api/inventory-history",
-  verifyToken,
-  inventoryRoutes
-);
+app.use("/api/inventory-history", verifyToken, inventoryRoutes);
 
-app.use(
-  "/api/damaged",
-  verifyToken,
-  blockViewerWrites,
-  damagedRoutes
-);
+app.use("/api/damaged", verifyToken, blockViewerWrites, damagedRoutes);
 
-app.use(
-  "/api/settings",
-  verifyToken,
-  blockViewerWrites,
-  settingsRoutes
-);
+app.use("/api/settings", verifyToken, blockViewerWrites, settingsRoutes);
 
 // ========================================
 // HR / Finance modules
@@ -1714,11 +1327,8 @@ app.use((req, res) => {
 // Start server
 // ========================================
 
-const PORT =
-  process.env.PORT || 5000;
+const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(
-    `🚀 Server running on port ${PORT}`
-  );
-});
+  console.log(`🚀 Server running on port ${PORT}`);
+});

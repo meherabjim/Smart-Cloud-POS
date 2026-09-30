@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import API_BASE_URL from "../apiConfig";
 import "./Damaged.css";
+import { toast } from "../components/Toast";
 
 function Damaged() {
   const activeStoreId = Number(localStorage.getItem("activeStoreId")) || 1;
@@ -28,7 +29,7 @@ function Damaged() {
       setDamagedItems(damagedRes.data || []);
     } catch (err) {
       console.error(err);
-      alert("Failed to load damaged items.");
+      toast("Failed to load damaged items.");
     } finally {
       setLoading(false);
     }
@@ -42,7 +43,7 @@ function Damaged() {
     e.preventDefault();
 
     if (!productId || !quantity) {
-      alert("Select product and quantity.");
+      toast("Select product and quantity.");
       return;
     }
 
@@ -60,13 +61,13 @@ function Damaged() {
         }
       );
 
-      alert("Damaged item added.");
+      toast("Damaged item added.");
       setProductId("");
       setQuantity("");
       setReason("Damaged");
       fetchData();
     } catch (err) {
-      alert(err.response?.data?.message || "Failed");
+      toast(err.response?.data?.message || "Failed");
     }
   };
 
@@ -78,10 +79,10 @@ function Damaged() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      alert("Record deleted successfully.");
+      toast("Record deleted successfully.");
       fetchData();
     } catch (err) {
-      alert(err.response?.data?.message || "Delete failed.");
+      toast(err.response?.data?.message || "Delete failed.");
     }
   };
 
@@ -192,4 +193,4 @@ function Damaged() {
   );
 }
 
-export default Damaged;
+export default Damaged;

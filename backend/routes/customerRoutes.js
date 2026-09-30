@@ -11,7 +11,11 @@ const {
   getCustomerProducts,
   getCustomerStores,
   getAllCustomersAdmin,
+  getStoreProducts,
+  getMyPurchases,
 } = require("../controllers/customerController");
+
+const { customerAiChat } = require("../controllers/customerAiController");
 
 const {
   verifyToken,
@@ -81,8 +85,27 @@ router.post(
   registerCustomer
 );
 
+// Max 10 login tries per 15 min for the same phone/email + IP
+const loginTries = new Map();
+const limitLogin = (req, res, next) => {
+  const ip = String(req.headers["x-forwarded-for"] || req.ip || "").split(",")[0].trim();
+  const key = `${ip}|${String(req.body?.phone || req.body?.email || "").trim().toLowerCase()}`;
+  const now = Date.now();
+  const t = loginTries.get(key);
+  if (!t || now - t.start > 15 * 60 * 1000) {
+    loginTries.set(key, { start: now, count: 1 });
+    return next();
+  }
+  t.count += 1;
+  if (t.count > 10) {
+    return res.status(429).json({ success: false, message: "Too many login attempts. Try again after 15 minutes." });
+  }
+  return next();
+};
+
 router.post(
   "/login",
+  limitLogin,
   loginCustomer
 );
 
@@ -108,6 +131,10 @@ router.get(
   verifyCustomerToken,
   getCustomerStores
 );
+
+router.get("/stores/:id/products", verifyCustomerToken, getStoreProducts);
+router.get("/purchases", verifyCustomerToken, getMyPurchases);
+router.post("/ai/chat", verifyCustomerToken, customerAiChat);
 
 router.get(
   "/points/history",

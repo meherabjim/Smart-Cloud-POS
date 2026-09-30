@@ -3,6 +3,58 @@ const db = require("../config/db");
 // Only Admin sees all stores now (Viewer role removed).
 const hasAllStoreAccess = (role) => role === "Admin";
 
+// Same threshold the Attendance Camera uses to say "this is the same person".
+const SAME_FACE_THRESHOLD = 0.6;
+
+// Stored JSON -> array of samples (old format was one flat array).
+const parseDescriptors = (raw) => {
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) return [];
+    return Array.isArray(parsed[0]) ? parsed : [parsed];
+  } catch (e) {
+    return [];
+  }
+};
+
+const cosine = (a, b) => {
+  const n = Math.min(a.length, b.length);
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < n; i += 1) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  return na && nb ? dot / (Math.sqrt(na) * Math.sqrt(nb)) : 0;
+};
+
+// Best similarity between two sets of samples.
+const bestMatch = (samplesA, samplesB) => {
+  let best = 0;
+  for (const a of samplesA) {
+    for (const b of samplesB) {
+      const c = cosine(a, b);
+      if (c > best) best = c;
+    }
+  }
+  return best;
+};
+
+// All users who have a stored face (any status), with store name.
+const loadRegisteredFaces = async () => {
+  const [rows] = await db.query(`
+    SELECT u.id, u.name, u.role, u.store_id, s.name AS store_name, u.face_descriptor
+    FROM users u
+    LEFT JOIN stores s ON s.id = u.store_id
+    WHERE u.face_registered = 1 AND u.face_descriptor IS NOT NULL`);
+  return rows
+    .map((r) => ({ id: r.id, name: r.name, role: r.role, store_id: r.store_id,
+                   store_name: r.store_name, samples: parseDescriptors(r.face_descriptor) }))
+    .filter((r) => r.samples.length > 0);
+};
+
 // ========================================
 // GET /api/face/status
 // Is the logged-in user's face registered yet?
@@ -66,6 +118,29 @@ exports.registerFace = async (req, res) => {
         success: false,
         message: "Face not detected clearly. Please try again.",
       });
+    }
+
+    // 1) One face per account: a registered face can only be replaced after an Admin reset.
+    const [meRows] = await db.query("SELECT face_registered FROM users WHERE id = ? LIMIT 1", [req.user.id]);
+    if (meRows.length === 0) {
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+    if (Number(meRows[0].face_registered) === 1) {
+      return res.status(409).json({
+        success: false,
+        message: "Your face is already registered. Ask the Admin to reset it first.",
+      });
+    }
+
+    // 2) One account per face: the same person cannot register on a second account.
+    const others = (await loadRegisteredFaces()).filter((u) => Number(u.id) !== Number(req.user.id));
+    for (const other of others) {
+      if (bestMatch(list, other.samples) >= SAME_FACE_THRESHOLD) {
+        return res.status(409).json({
+          success: false,
+          message: `This face is already registered to ${other.name} (${other.role}, ${other.store_name || "no store"}). Ask the Admin to reset that face or edit that account instead.`,
+        });
+      }
     }
 
     await db.query(
@@ -134,6 +209,30 @@ exports.getStoreDescriptors = async (req, res) => {
     return res.json({ success: true, store_id: storeId, staff });
   } catch (error) {
     console.error("Store Descriptors Error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ========================================
+// GET /api/face/duplicates   (Admin only)
+// Pairs of accounts that hold the same person's face.
+// ========================================
+exports.getDuplicates = async (req, res) => {
+  try {
+    const faces = await loadRegisteredFaces();
+    const pairs = [];
+    for (let i = 0; i < faces.length; i += 1) {
+      for (let j = i + 1; j < faces.length; j += 1) {
+        const score = bestMatch(faces[i].samples, faces[j].samples);
+        if (score >= SAME_FACE_THRESHOLD) {
+          const pick = ({ id, name, role, store_name }) => ({ id, name, role, store_name });
+          pairs.push({ a: pick(faces[i]), b: pick(faces[j]), score: Number(score.toFixed(2)) });
+        }
+      }
+    }
+    return res.json({ success: true, pairs });
+  } catch (error) {
+    console.error("Face Duplicates Error:", error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };

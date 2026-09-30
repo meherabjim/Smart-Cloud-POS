@@ -12,7 +12,10 @@ function Invoice({ saleId, onClose }) {
 
   const loadInvoice = async () => {
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/sales/${saleId}`);
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${API_BASE_URL}/api/sales/${saleId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       setSale(res.data);
     } catch (err) {
       alert("Invoice Load Failed");
@@ -140,4 +143,4 @@ function Invoice({ saleId, onClose }) {
   );
 }
 
-export default Invoice;
+export default Invoice;

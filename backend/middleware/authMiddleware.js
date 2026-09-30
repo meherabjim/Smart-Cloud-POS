@@ -1,7 +1,10 @@
 const jwt = require("jsonwebtoken");
+const db = require("../config/db");
 
-// Check whether the request contains a valid login token
-const verifyToken = (req, res, next) => {
+// Check whether the request contains a valid login token.
+// Role, store and status are read fresh from the database on every request,
+// so a changed role/store, a deleted or an inactive account takes effect at once.
+const verifyToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -12,13 +15,63 @@ const verifyToken = (req, res, next) => {
 
   const token = authHeader.split(" ")[1];
 
+  let decoded;
+
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
-    next();
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
   } catch (error) {
     return res.status(401).json({
       message: "Invalid or expired token.",
+    });
+  }
+
+  // Customer tokens must never open staff APIs
+  if (decoded.account_type === "customer" || !decoded.role) {
+    return res.status(401).json({
+      message: "Staff login required.",
+    });
+  }
+
+  try {
+    const [rows] = await db.query(
+      "SELECT id, role, store_id, email, status FROM users WHERE id = ? LIMIT 1",
+      [decoded.id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(401).json({
+        message: "This account no longer exists. Please login again.",
+      });
+    }
+
+    const user = rows[0];
+
+    // The demo Viewer role has been removed
+    if (user.role === "Viewer") {
+      return res.status(403).json({
+        message: "Viewer accounts are no longer supported.",
+      });
+    }
+
+    if (user.status && user.status !== "Active") {
+      return res.status(403).json({
+        message: "This account is inactive. Contact the Admin.",
+      });
+    }
+
+    req.user = {
+      ...decoded,
+      role: user.role,
+      store_id: user.store_id,
+      email: user.email,
+    };
+
+    return next();
+  } catch (error) {
+    console.error("Auth check error:", error);
+
+    return res.status(500).json({
+      message: "Could not verify your login. Try again.",
     });
   }
 };
@@ -57,4 +110,4 @@ module.exports = {
   verifyToken,
   allowRoles,
   blockViewerWrites,
-};
+};

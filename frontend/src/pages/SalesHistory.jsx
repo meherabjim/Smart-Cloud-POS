@@ -2,9 +2,30 @@ import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import API_BASE_URL from "../apiConfig";
 import "./SalesHistory.css";
+import { toast } from "../components/Toast";
+
+// Send the login token with every request
+const authHeader = () => {
+  const token = localStorage.getItem("token");
+  return token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+};
 
 function SalesHistory() {
-  const activeStoreId = Number(localStorage.getItem("activeStoreId")) || 1;
+  let currentUser = {};
+  try {
+    currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+  } catch (error) {
+    currentUser = {};
+  }
+
+  // Staff see only their own store; Admin sees the selected store
+  const isStaff =
+    currentUser.role && !["Admin", "Viewer"].includes(currentUser.role);
+
+  const activeStoreId =
+    (isStaff && Number(currentUser.store_id)) ||
+    Number(localStorage.getItem("activeStoreId")) ||
+    1;
 
   const [sales, setSales] = useState([]);
   const [phone, setPhone] = useState("");
@@ -21,12 +42,13 @@ function SalesHistory() {
         }
 
         const res = await axios.get(
-          `${API_BASE_URL}/api/sales?${params.toString()}`
+          `${API_BASE_URL}/api/sales?${params.toString()}`,
+          authHeader()
         );
         setSales(res.data || []);
       } catch (err) {
         console.log(err);
-        alert("Failed to load sales history");
+        toast(err.response?.data?.message || "Failed to load sales history");
       }
     },
     [activeStoreId]
@@ -47,13 +69,13 @@ function SalesHistory() {
 
   const handleView = async (id) => {
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/sales/${id}`);
+      const res = await axios.get(`${API_BASE_URL}/api/sales/${id}`, authHeader());
       setSelectedSale(res.data.sale);
       setItems(res.data.items || []);
       setShowModal(true);
     } catch (err) {
       console.log(err);
-      alert("Failed to load invoice");
+      toast(err.response?.data?.message || "Failed to load invoice");
     }
   };
 
@@ -255,4 +277,4 @@ function SalesHistory() {
   );
 }
 
-export default SalesHistory;
+export default SalesHistory;

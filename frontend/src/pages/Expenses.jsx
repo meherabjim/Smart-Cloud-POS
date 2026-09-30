@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import API_BASE_URL from "../apiConfig";
 import "./Expenses.css";
+import { toast } from "../components/Toast";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -37,7 +38,7 @@ function Expenses({ user, activeStoreId }) {
       setRows(res.data.expenses || []);
       setTotal(res.data.total_expense || 0);
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to load expenses.");
+      toast(err.response?.data?.message || "Failed to load expenses.");
     } finally {
       setLoading(false);
     }
@@ -48,7 +49,7 @@ function Expenses({ user, activeStoreId }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!amount || Number(amount) <= 0) { alert("Enter a valid amount."); return; }
+    if (!amount || Number(amount) <= 0) { toast("Enter a valid amount."); return; }
     try {
       await axios.post(
         `${API_BASE_URL}/api/expenses`,
@@ -57,7 +58,7 @@ function Expenses({ user, activeStoreId }) {
       );
       setAmount(""); setNote(""); load();
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to add expense.");
+      toast(err.response?.data?.message || "Failed to add expense.");
     }
   };
 
@@ -67,7 +68,7 @@ function Expenses({ user, activeStoreId }) {
       await axios.delete(`${API_BASE_URL}/api/expenses/${id}`, { headers });
       load();
     } catch (err) {
-      alert(err.response?.data?.message || "Delete failed.");
+      toast(err.response?.data?.message || "Delete failed.");
     }
   };
 
@@ -159,4 +160,4 @@ function Expenses({ user, activeStoreId }) {
   );
 }
 
-export default Expenses;
+export default Expenses;

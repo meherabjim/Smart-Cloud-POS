@@ -1,25 +1,18 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import API_BASE_URL from "../apiConfig";
+import CustomerAiWidget from "../components/CustomerAiWidget";
+import StoreView from "../components/customer/StoreView";
+import MyPurchases from "../components/customer/MyPurchases";
+import { money, StockChip } from "../components/customer/customerUi";
 import "./CustomerPortal.css";
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || "https://smart-cloud-pos.onrender.com";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
 });
 
-const money = (value) =>
-  `৳${Number(value || 0).toFixed(2)}`;
-
 function CustomerPortal({ onBack }) {
-  const [token, setToken] = useState(
-    () => localStorage.getItem("customerToken") || ""
-  );
+  const [token, setToken] = useState(() => localStorage.getItem("customerToken") || "");
   const [customer, setCustomer] = useState(null);
   const [mode, setMode] = useState("login");
   const [activeTab, setActiveTab] = useState("overview");
@@ -38,12 +31,12 @@ function CustomerPortal({ onBack }) {
 
   const [stores, setStores] = useState([]);
   const [products, setProducts] = useState([]);
-  const [discountedProducts, setDiscountedProducts] =
-    useState([]);
+  const [discountedProducts, setDiscountedProducts] = useState([]);
+  // { id, highlight } when a store page is open
+  const [storeView, setStoreView] = useState(null);
   const [transactions, setTransactions] = useState([]);
 
-  const [selectedStoreId, setSelectedStoreId] =
-    useState("");
+  const [selectedStoreId, setSelectedStoreId] = useState("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(Boolean(token));
   const [submitting, setSubmitting] = useState(false);
@@ -76,6 +69,7 @@ function CustomerPortal({ onBack }) {
     setSelectedStoreId("");
     setSearch("");
     setMessage("");
+    setStoreView(null);
     setActiveTab("overview");
   }, []);
 
@@ -89,46 +83,27 @@ function CustomerPortal({ onBack }) {
     setMessage("");
 
     try {
-      const [
-        profileRes,
-        storesRes,
-        productsRes,
-        discountedRes,
-        historyRes,
-      ] = await Promise.all([
+      const [profileRes, storesRes, productsRes, discountedRes, historyRes] = await Promise.all([
         customerApi.get("/api/customers/me"),
         customerApi.get("/api/customers/stores"),
         customerApi.get("/api/customers/products"),
-        customerApi.get(
-          "/api/customers/products/discounted"
-        ),
-        customerApi.get(
-          "/api/customers/points/history"
-        ),
+        customerApi.get("/api/customers/products/discounted"),
+        customerApi.get("/api/customers/points/history"),
       ]);
 
       setCustomer(profileRes.data.customer || null);
       setStores(storesRes.data.stores || []);
-      setProducts(productsRes.data.products || []);
-      setDiscountedProducts(
-        discountedRes.data.products || []
-      );
-      setTransactions(
-        historyRes.data.transactions || []
-      );
+      setProducts(productsRes.data.groups || []);
+      setDiscountedProducts(discountedRes.data.groups || []);
+      setTransactions(historyRes.data.transactions || []);
     } catch (error) {
       const status = error.response?.status;
 
       if (status === 401 || status === 403) {
         logout();
-        setMessage(
-          "Your customer session expired. Please login again."
-        );
+        setMessage("Your customer session expired. Please login again.");
       } else {
-        setMessage(
-          error.response?.data?.message ||
-            "Failed to load customer portal."
-        );
+        setMessage(error.response?.data?.message || "Failed to load customer portal.");
       }
     } finally {
       setLoading(false);
@@ -145,14 +120,11 @@ function CustomerPortal({ onBack }) {
     setMessage("");
 
     try {
-      const response = await api.post(
-        "/api/customers/login",
-        {
-          phone: loginForm.login,
-          email: loginForm.login,
-          password: loginForm.password,
-        }
-      );
+      const response = await api.post("/api/customers/login", {
+        phone: loginForm.login,
+        email: loginForm.login,
+        password: loginForm.password,
+      });
 
       const nextToken = response.data.token;
 
@@ -164,10 +136,7 @@ function CustomerPortal({ onBack }) {
         password: "",
       });
     } catch (error) {
-      setMessage(
-        error.response?.data?.message ||
-          "Customer login failed."
-      );
+      setMessage(error.response?.data?.message || "Customer login failed.");
     } finally {
       setSubmitting(false);
     }
@@ -199,115 +168,61 @@ function CustomerPortal({ onBack }) {
       });
 
       setMode("login");
-      setMessage(
-        "Registration successful. Login with your phone number."
-      );
+      setMessage("Registration successful. Login with your phone number.");
     } catch (error) {
-      setMessage(
-        error.response?.data?.message ||
-          "Customer registration failed."
-      );
+      setMessage(error.response?.data?.message || "Customer registration failed.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const refreshProducts = async () => {
-    setLoading(true);
-    setMessage("");
+  // Live search (name / category) while typing
+  useEffect(() => {
+    if (!token || activeTab !== "products") return undefined;
 
-    try {
-      const params = {};
+    const timer = setTimeout(async () => {
+      try {
+        const params = {};
+        if (selectedStoreId) params.store_id = selectedStoreId;
+        if (search.trim()) params.search = search.trim();
 
-      if (selectedStoreId) {
-        params.store_id = selectedStoreId;
+        const response = await customerApi.get("/api/customers/products", { params });
+        setProducts(response.data.groups || []);
+      } catch (error) {
+        setMessage(error.response?.data?.message || "Failed to search products.");
       }
+    }, 350);
 
-      if (search.trim()) {
-        params.search = search.trim();
-      }
+    return () => clearTimeout(timer);
+  }, [search, selectedStoreId, activeTab, token, customerApi]);
 
-      const response = await customerApi.get(
-        "/api/customers/products",
-        { params }
-      );
-
-      setProducts(response.data.products || []);
-    } catch (error) {
-      setMessage(
-        error.response?.data?.message ||
-          "Failed to search products."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const resetProductFilters = async () => {
-    setSelectedStoreId("");
-    setSearch("");
-    setLoading(true);
-
-    try {
-      const response = await customerApi.get(
-        "/api/customers/products"
-      );
-
-      setProducts(response.data.products || []);
-    } catch (error) {
-      setMessage(
-        error.response?.data?.message ||
-          "Failed to reset products."
-      );
-    } finally {
-      setLoading(false);
-    }
+  const openStore = (id, highlight = "") => {
+    setStoreView({ id, highlight });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const totalEarned = transactions
-    .filter(
-      (item) => item.transaction_type === "EARN"
-    )
-    .reduce(
-      (sum, item) => sum + Number(item.points || 0),
-      0
-    );
+    .filter((item) => item.transaction_type === "EARN")
+    .reduce((sum, item) => sum + Number(item.points || 0), 0);
 
   const totalRedeemed = transactions
-    .filter(
-      (item) => item.transaction_type === "REDEEM"
-    )
-    .reduce(
-      (sum, item) => sum + Number(item.points || 0),
-      0
-    );
+    .filter((item) => item.transaction_type === "REDEEM")
+    .reduce((sum, item) => sum + Number(item.points || 0), 0);
 
   if (!token) {
     return (
       <div className="customer-auth-page">
         <div className="customer-auth-card">
           <section className="customer-auth-hero">
-            <button
-              type="button"
-              className="customer-back-btn"
-              onClick={onBack}
-            >
+            <button type="button" className="customer-back-btn" onClick={onBack}>
               ← Staff login
             </button>
 
-            <div className="customer-brand-badge">
-              Cloud POS Loyalty
-            </div>
+            <div className="customer-brand-badge">Cloud POS Loyalty</div>
 
-            <h1>
-              Earn points every time you shop
-            </h1>
+            <h1>Earn points every time you shop</h1>
 
-            <p>
-              Check your balance, offers, product
-              availability and point history from one
-              place.
-            </p>
+            <p>Check your balance, offers, product availability and point history from one place.</p>
 
             <div className="customer-rule-list">
               <div>
@@ -331,9 +246,7 @@ function CustomerPortal({ onBack }) {
             <div className="customer-auth-tabs">
               <button
                 type="button"
-                className={
-                  mode === "login" ? "active" : ""
-                }
+                className={mode === "login" ? "active" : ""}
                 onClick={() => {
                   setMode("login");
                   setMessage("");
@@ -344,9 +257,7 @@ function CustomerPortal({ onBack }) {
 
               <button
                 type="button"
-                className={
-                  mode === "register" ? "active" : ""
-                }
+                className={mode === "register" ? "active" : ""}
                 onClick={() => {
                   setMode("register");
                   setMessage("");
@@ -357,10 +268,7 @@ function CustomerPortal({ onBack }) {
             </div>
 
             {mode === "login" ? (
-              <form
-                className="customer-auth-form"
-                onSubmit={handleLogin}
-              >
+              <form className="customer-auth-form" onSubmit={handleLogin}>
                 <h2>Customer login</h2>
 
                 <label>
@@ -386,8 +294,7 @@ function CustomerPortal({ onBack }) {
                     onChange={(event) =>
                       setLoginForm((current) => ({
                         ...current,
-                        password:
-                          event.target.value,
+                        password: event.target.value,
                       }))
                     }
                     placeholder="Enter password"
@@ -395,27 +302,14 @@ function CustomerPortal({ onBack }) {
                   />
                 </label>
 
-                {message && (
-                  <div className="customer-form-message">
-                    {message}
-                  </div>
-                )}
+                {message && <div className="customer-form-message">{message}</div>}
 
-                <button
-                  type="submit"
-                  className="customer-primary-btn"
-                  disabled={submitting}
-                >
-                  {submitting
-                    ? "Logging in..."
-                    : "Login"}
+                <button type="submit" className="customer-primary-btn" disabled={submitting}>
+                  {submitting ? "Logging in..." : "Login"}
                 </button>
               </form>
             ) : (
-              <form
-                className="customer-auth-form"
-                onSubmit={handleRegister}
-              >
+              <form className="customer-auth-form" onSubmit={handleRegister}>
                 <h2>Create customer account</h2>
 
                 <label>
@@ -423,12 +317,10 @@ function CustomerPortal({ onBack }) {
                   <input
                     value={registerForm.name}
                     onChange={(event) =>
-                      setRegisterForm(
-                        (current) => ({
-                          ...current,
-                          name: event.target.value,
-                        })
-                      )
+                      setRegisterForm((current) => ({
+                        ...current,
+                        name: event.target.value,
+                      }))
                     }
                     placeholder="Your name"
                     required
@@ -440,13 +332,10 @@ function CustomerPortal({ onBack }) {
                   <input
                     value={registerForm.phone}
                     onChange={(event) =>
-                      setRegisterForm(
-                        (current) => ({
-                          ...current,
-                          phone:
-                            event.target.value,
-                        })
-                      )
+                      setRegisterForm((current) => ({
+                        ...current,
+                        phone: event.target.value,
+                      }))
                     }
                     placeholder="01700000000"
                     required
@@ -459,13 +348,10 @@ function CustomerPortal({ onBack }) {
                     type="email"
                     value={registerForm.email}
                     onChange={(event) =>
-                      setRegisterForm(
-                        (current) => ({
-                          ...current,
-                          email:
-                            event.target.value,
-                        })
-                      )
+                      setRegisterForm((current) => ({
+                        ...current,
+                        email: event.target.value,
+                      }))
                     }
                     placeholder="name@example.com"
                   />
@@ -478,33 +364,20 @@ function CustomerPortal({ onBack }) {
                     minLength={6}
                     value={registerForm.password}
                     onChange={(event) =>
-                      setRegisterForm(
-                        (current) => ({
-                          ...current,
-                          password:
-                            event.target.value,
-                        })
-                      )
+                      setRegisterForm((current) => ({
+                        ...current,
+                        password: event.target.value,
+                      }))
                     }
                     placeholder="Minimum 6 characters"
                     required
                   />
                 </label>
 
-                {message && (
-                  <div className="customer-form-message">
-                    {message}
-                  </div>
-                )}
+                {message && <div className="customer-form-message">{message}</div>}
 
-                <button
-                  type="submit"
-                  className="customer-primary-btn"
-                  disabled={submitting}
-                >
-                  {submitting
-                    ? "Creating account..."
-                    : "Register"}
+                <button type="submit" className="customer-primary-btn" disabled={submitting}>
+                  {submitting ? "Creating account..." : "Register"}
                 </button>
               </form>
             )}
@@ -521,11 +394,7 @@ function CustomerPortal({ onBack }) {
           {message || "Loading your loyalty account..."}
           {message && (
             <div style={{ marginTop: 12 }}>
-              <button
-                type="button"
-                className="customer-primary-btn"
-                onClick={logout}
-              >
+              <button type="button" className="customer-primary-btn" onClick={logout}>
                 Login again
               </button>
             </div>
@@ -539,42 +408,23 @@ function CustomerPortal({ onBack }) {
     <div className="customer-portal">
       <header className="customer-portal-header">
         <div>
-          <span className="customer-brand-badge">
-            Cloud POS Loyalty
-          </span>
+          <span className="customer-brand-badge">Cloud POS Loyalty</span>
 
-          <h1>
-            Welcome, {customer.name}
-          </h1>
+          <h1>Welcome, {customer.name}</h1>
 
           <p>
             {customer.phone}
-            {customer.email
-              ? ` · ${customer.email}`
-              : ""}
+            {customer.email ? ` · ${customer.email}` : ""}
           </p>
         </div>
 
         <div className="customer-header-actions">
-          <button
-            type="button"
-            onClick={loadPortalData}
-          >
+          <button type="button" onClick={loadPortalData}>
             Refresh
           </button>
 
-          <button
-            type="button"
-            onClick={logout}
-          >
+          <button type="button" onClick={logout}>
             Logout
-          </button>
-
-          <button
-            type="button"
-            onClick={onBack}
-          >
-            Staff login
           </button>
         </div>
       </header>
@@ -585,31 +435,36 @@ function CustomerPortal({ onBack }) {
           ["offers", "Discounted Products"],
           ["products", "All Products"],
           ["stores", "Stores"],
+          ["purchases", "My Purchases"],
           ["history", "Point History"],
         ].map(([key, label]) => (
           <button
             type="button"
             key={key}
-            className={
-              activeTab === key ? "active" : ""
-            }
-            onClick={() => setActiveTab(key)}
+            className={activeTab === key && !storeView ? "active" : ""}
+            onClick={() => {
+              setStoreView(null);
+              setActiveTab(key);
+            }}
           >
             {label}
           </button>
         ))}
       </nav>
 
-      {message && (
-        <div className="customer-page-message">
-          {message}
-        </div>
-      )}
+      {message && <div className="customer-page-message">{message}</div>}
 
       {loading ? (
-        <div className="customer-loading">
-          Loading customer portal...
-        </div>
+        <div className="customer-loading">Loading customer portal...</div>
+      ) : storeView ? (
+        <main className="customer-portal-main">
+          <StoreView
+            api={customerApi}
+            storeId={storeView.id}
+            highlight={storeView.highlight}
+            onBack={() => setStoreView(null)}
+          />
+        </main>
       ) : (
         <main className="customer-portal-main">
           {activeTab === "overview" && (
@@ -617,40 +472,26 @@ function CustomerPortal({ onBack }) {
               <section className="customer-stat-grid">
                 <article>
                   <span>Available points</span>
-                  <strong>
-                    {Number(
-                      customer.points_balance || 0
-                    )}
-                  </strong>
-                  <small>
-                    Redeem from 100 points
-                  </small>
+                  <strong>{Number(customer.points_balance || 0)}</strong>
+                  <small>Redeem from 100 points</small>
                 </article>
 
                 <article>
                   <span>Total points earned</span>
                   <strong>{totalEarned}</strong>
-                  <small>
-                    Across all completed sales
-                  </small>
+                  <small>Across all completed sales</small>
                 </article>
 
                 <article>
                   <span>Total points redeemed</span>
                   <strong>{totalRedeemed}</strong>
-                  <small>
-                    100 points = ৳80
-                  </small>
+                  <small>100 points = ৳80</small>
                 </article>
 
                 <article>
                   <span>Current offers</span>
-                  <strong>
-                    {discountedProducts.length}
-                  </strong>
-                  <small>
-                    Discounted products in stock
-                  </small>
+                  <strong>{discountedProducts.length}</strong>
+                  <small>Discounted products in stock</small>
                 </article>
               </section>
 
@@ -658,31 +499,20 @@ function CustomerPortal({ onBack }) {
                 <div className="customer-section-head">
                   <div>
                     <h2>Current offers</h2>
-                    <p>
-                      Best available discounts across
-                      all stores
-                    </p>
+                    <p>Best available discounts across all stores</p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setActiveTab("offers")
-                    }
-                  >
+                  <button type="button" onClick={() => setActiveTab("offers")}>
                     View all
                   </button>
                 </div>
 
                 <ProductGrid
-                  products={discountedProducts.slice(
-                    0,
-                    4
-                  )}
+                  onOpenStore={openStore}
+                  products={discountedProducts.slice(0, 4)}
                   emptyText="No discounted products are available."
                 />
               </section>
-
             </>
           )}
 
@@ -691,14 +521,12 @@ function CustomerPortal({ onBack }) {
               <div className="customer-section-head">
                 <div>
                   <h2>Discounted products</h2>
-                  <p>
-                    Store-wise offers currently in
-                    stock
-                  </p>
+                  <p>Store-wise offers currently in stock</p>
                 </div>
               </div>
 
               <ProductGrid
+                onOpenStore={openStore}
                 products={discountedProducts}
                 emptyText="No discounted products are available."
               />
@@ -709,63 +537,36 @@ function CustomerPortal({ onBack }) {
             <section className="customer-section">
               <div className="customer-section-head customer-products-head">
                 <div>
-                  <h2>All available products</h2>
-                  <p>
-                    Search by product, category,
-                    barcode or store
-                  </p>
+                  <h2>All products</h2>
+                  <p>Product-এর নাম লিখুন — কোন store-এ কত দাম দেখুন</p>
                 </div>
 
                 <div className="customer-product-filters">
                   <input
                     value={search}
-                    onChange={(event) =>
-                      setSearch(event.target.value)
-                    }
+                    onChange={(event) => setSearch(event.target.value)}
                     placeholder="Search products..."
                   />
 
                   <select
                     value={selectedStoreId}
-                    onChange={(event) =>
-                      setSelectedStoreId(
-                        event.target.value
-                      )
-                    }
+                    onChange={(event) => setSelectedStoreId(event.target.value)}
                   >
-                    <option value="">
-                      All stores
-                    </option>
+                    <option value="">All stores</option>
 
                     {stores.map((store) => (
-                      <option
-                        key={store.id}
-                        value={store.id}
-                      >
+                      <option key={store.id} value={store.id}>
                         {store.name}
                       </option>
                     ))}
                   </select>
-
-                  <button
-                    type="button"
-                    onClick={refreshProducts}
-                  >
-                    Search
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={resetProductFilters}
-                  >
-                    Reset
-                  </button>
                 </div>
               </div>
 
               <ProductGrid
+                onOpenStore={openStore}
                 products={products}
-                emptyText="No available products found."
+                emptyText="কোনো product পাওয়া যায়নি।"
               />
             </section>
           )}
@@ -775,34 +576,37 @@ function CustomerPortal({ onBack }) {
               <div className="customer-section-head">
                 <div>
                   <h2>Our stores</h2>
-                  <p>
-                    See how many products are
-                    currently available
-                  </p>
+                  <p>Store-এ click করে সব product দেখুন</p>
                 </div>
               </div>
 
               <div className="customer-store-grid">
                 {stores.map((store) => (
-                  <article key={store.id}>
+                  <article key={store.id} className="cp-clickable" onClick={() => openStore(store.id)}>
                     <div>Store:</div>
                     <h3>{store.name}</h3>
-                    <p>
-                      {store.location ||
-                        "Location not specified"}
-                    </p>
+                    <p>{store.location || "Location not specified"}</p>
                     <strong>
-                      {store.available_products}{" "}
-                      available product
-                      {Number(
-                        store.available_products
-                      ) === 1
-                        ? ""
-                        : "s"}
+                      {store.in_stock_products} products in stock
+                      {store.offers > 0 ? ` · ${store.offers} offers` : ""}
                     </strong>
+                    <small className="cp-open-hint">Store দেখুন →</small>
                   </article>
                 ))}
               </div>
+            </section>
+          )}
+
+          {activeTab === "purchases" && (
+            <section className="customer-section">
+              <div className="customer-section-head">
+                <div>
+                  <h2>My purchases</h2>
+                  <p>আপনার সব কেনাকাটা — click করে bill দেখুন</p>
+                </div>
+              </div>
+
+              <MyPurchases api={customerApi} />
             </section>
           )}
 
@@ -811,86 +615,89 @@ function CustomerPortal({ onBack }) {
               <div className="customer-section-head">
                 <div>
                   <h2>Point history</h2>
-                  <p>
-                    Complete loyalty earn and redeem
-                    records
-                  </p>
+                  <p>Complete loyalty earn and redeem records</p>
                 </div>
               </div>
 
-              <HistoryTable
-                transactions={transactions}
-              />
+              <HistoryTable transactions={transactions} />
             </section>
           )}
         </main>
       )}
+
+      <CustomerAiWidget api={customerApi} onOpenStore={openStore} />
     </div>
   );
 }
 
-function ProductGrid({ products, emptyText }) {
+// One card per product name, every store's price inside.
+function ProductGrid({ products, emptyText, onOpenStore }) {
+  const [openKey, setOpenKey] = useState(null);
+
   if (!products.length) {
-    return (
-      <div className="customer-empty-state">
-        {emptyText}
-      </div>
-    );
+    return <div className="customer-empty-state">{emptyText}</div>;
   }
 
   return (
     <div className="customer-product-grid">
-      {products.map((product) => {
-        const originalPrice = Number(
-          product.selling_price || 0
-        );
-
-        const discount = Number(
-          product.discount_percent || 0
-        );
-
-        const finalPrice = Number(
-          product.discounted_price ??
-            product.final_price ??
-            originalPrice
-        );
+      {products.map((group) => {
+        const best = group.cheapest;
+        const isOpen = openKey === group.key;
 
         return (
-          <article
-            className="customer-product-card"
-            key={`${product.store_id}-${product.id}`}
-          >
+          <article className="customer-product-card" key={group.key}>
             <div className="customer-product-card-top">
-              <span>{product.category || "General"}</span>
-
-              {discount > 0 && (
-                <strong>{discount}% OFF</strong>
-              )}
+              <span>{group.category}</span>
+              {group.max_discount > 0 && <strong>Up to {group.max_discount}% OFF</strong>}
             </div>
 
-            <h3>{product.name}</h3>
+            <h3>{group.name}</h3>
 
-            <p>
-              Store: {product.store_name}
-            </p>
-
-            {product.store_location && (
-              <small>
-                {product.store_location}
-              </small>
+            {best ? (
+              <>
+                <div className="customer-product-price">
+                  <strong>{money(best.final_price)}</strong>
+                  {best.discount_percent > 0 && <del>{money(best.price)}</del>}
+                </div>
+                <p className="cp-best-line">
+                  সবচেয়ে কম দাম: <b>{best.store_name}</b>
+                  {group.save_amount > 0 && ` · ৳${group.save_amount} সাশ্রয়`}
+                </p>
+                <small>{group.available_stores}টা store-এ পাওয়া যাচ্ছে</small>
+              </>
+            ) : (
+              <StockChip status="out" />
             )}
 
-            <div className="customer-product-price">
-              <strong>{money(finalPrice)}</strong>
+            <button
+              type="button"
+              className="cp-link-btn"
+              onClick={() => setOpenKey(isOpen ? null : group.key)}
+            >
+              {isOpen ? "লুকান ▲" : `সব store-এর দাম (${group.stores.length}) ▼`}
+            </button>
 
-              {discount > 0 && (
-                <del>{money(originalPrice)}</del>
-              )}
-            </div>
-
-            <div className="customer-product-stock">
-              {Number(product.stock)} in stock
-            </div>
+            {isOpen && (
+              <ul className="cp-store-prices">
+                {group.stores.map((s) => (
+                  <li
+                    key={s.product_id}
+                    className={best && s.product_id === best.product_id ? "cp-cheapest" : ""}
+                    onClick={() => onOpenStore(s.store_id, group.name)}
+                  >
+                    <span>
+                      {best && s.product_id === best.product_id ? "⭐ " : ""}
+                      {s.store_name}
+                      <small>{s.store_location}</small>
+                    </span>
+                    <span>
+                      <b>{money(s.final_price)}</b>
+                      <StockChip status={s.stock_status} />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </article>
         );
       })}
@@ -900,11 +707,7 @@ function ProductGrid({ products, emptyText }) {
 
 function HistoryTable({ transactions }) {
   if (!transactions.length) {
-    return (
-      <div className="customer-empty-state">
-        No point transactions yet.
-      </div>
-    );
+    return <div className="customer-empty-state">No point transactions yet.</div>;
   }
 
   return (
@@ -923,30 +726,16 @@ function HistoryTable({ transactions }) {
 
         <tbody>
           {transactions.map((item) => {
-            const isEarn =
-              item.transaction_type === "EARN";
+            const isEarn = item.transaction_type === "EARN";
 
             return (
               <tr key={item.id}>
-                <td>
-                  {new Date(
-                    item.created_at
-                  ).toLocaleString()}
-                </td>
+                <td>{new Date(item.created_at).toLocaleString()}</td>
+
+                <td>{item.store_name || `Store #${item.store_id || "-"}`}</td>
 
                 <td>
-                  {item.store_name ||
-                    `Store #${item.store_id || "-"}`}
-                </td>
-
-                <td>
-                  <span
-                    className={
-                      isEarn
-                        ? "customer-history-earn"
-                        : "customer-history-redeem"
-                    }
-                  >
+                  <span className={isEarn ? "customer-history-earn" : "customer-history-redeem"}>
                     {item.transaction_type}
                   </span>
                 </td>
@@ -956,15 +745,9 @@ function HistoryTable({ transactions }) {
                   {Number(item.points || 0)}
                 </td>
 
-                <td>
-                  {money(item.amount_value)}
-                </td>
+                <td>{money(item.amount_value)}</td>
 
-                <td>
-                  {Number(
-                    item.balance_after || 0
-                  )}
-                </td>
+                <td>{Number(item.balance_after || 0)}</td>
               </tr>
             );
           })}
@@ -975,4 +758,3 @@ function HistoryTable({ transactions }) {
 }
 
 export default CustomerPortal;
-

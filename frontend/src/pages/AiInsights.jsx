@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
 import API_BASE_URL from "../apiConfig";
 import "./AiInsights.css";
+import { toast } from "../components/Toast";
 
 const SUGGESTED = [
   "এই মাসে সবচেয়ে বেশি কী বিক্রি হয়েছে?",
@@ -142,7 +143,7 @@ function AiInsights({ user, activeStoreId }) {
   const startVoice = () => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) {
-      alert("এই browser voice সাপোর্ট করে না। Chrome ব্যবহার করুন।");
+      toast("এই browser voice সাপোর্ট করে না। Chrome ব্যবহার করুন।");
       return;
     }
     if (listening) {
@@ -284,4 +285,4 @@ function AiInsights({ user, activeStoreId }) {
   );
 }
 
-export default AiInsights;
+export default AiInsights;
