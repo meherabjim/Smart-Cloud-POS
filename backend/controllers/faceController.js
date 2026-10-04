@@ -3,8 +3,10 @@ const db = require("../config/db");
 // Only Admin sees all stores now (Viewer role removed).
 const hasAllStoreAccess = (role) => role === "Admin";
 
-// Same threshold the Attendance Camera uses to say "this is the same person".
-const SAME_FACE_THRESHOLD = 0.6;
+// Cosine similarity: higher = more similar.
+// Different people can easily score 0.6 - 0.8, so the "same person" check must be strict.
+// You can tune it without redeploying code via the FACE_SAME_THRESHOLD env variable.
+const SAME_FACE_THRESHOLD = Number(process.env.FACE_SAME_THRESHOLD) || 0.9;
 
 // Stored JSON -> array of samples (old format was one flat array).
 const parseDescriptors = (raw) => {
@@ -30,16 +32,20 @@ const cosine = (a, b) => {
   return na && nb ? dot / (Math.sqrt(na) * Math.sqrt(nb)) : 0;
 };
 
-// Best similarity between two sets of samples.
+// Similarity between two sets of samples.
+// Uses the average of the top 3 pair scores instead of one lucky maximum,
+// so a single noisy sample cannot cause a false "same face" match.
 const bestMatch = (samplesA, samplesB) => {
-  let best = 0;
+  const scores = [];
   for (const a of samplesA) {
     for (const b of samplesB) {
-      const c = cosine(a, b);
-      if (c > best) best = c;
+      scores.push(cosine(a, b));
     }
   }
-  return best;
+  if (scores.length === 0) return 0;
+  scores.sort((x, y) => y - x);
+  const top = scores.slice(0, 3);
+  return top.reduce((sum, v) => sum + v, 0) / top.length;
 };
 
 // All users who have a stored face (any status), with store name.
@@ -50,8 +56,14 @@ const loadRegisteredFaces = async () => {
     LEFT JOIN stores s ON s.id = u.store_id
     WHERE u.face_registered = 1 AND u.face_descriptor IS NOT NULL`);
   return rows
-    .map((r) => ({ id: r.id, name: r.name, role: r.role, store_id: r.store_id,
-                   store_name: r.store_name, samples: parseDescriptors(r.face_descriptor) }))
+    .map((r) => ({
+      id: r.id,
+      name: r.name,
+      role: r.role,
+      store_id: r.store_id,
+      store_name: r.store_name,
+      samples: parseDescriptors(r.face_descriptor),
+    }))
     .filter((r) => r.samples.length > 0);
 };
 
@@ -120,8 +132,22 @@ exports.registerFace = async (req, res) => {
       });
     }
 
+    // Reject blank / broken descriptors (all zeros or NaN) - they can match anyone.
+    const isBad = (d) =>
+      d.some((n) => !Number.isFinite(n)) || d.every((n) => n === 0);
+    list = list.filter((d) => !isBad(d));
+    if (list.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Face data was invalid. Please try again.",
+      });
+    }
+
     // 1) One face per account: a registered face can only be replaced after an Admin reset.
-    const [meRows] = await db.query("SELECT face_registered FROM users WHERE id = ? LIMIT 1", [req.user.id]);
+    const [meRows] = await db.query(
+      "SELECT face_registered FROM users WHERE id = ? LIMIT 1",
+      [req.user.id]
+    );
     if (meRows.length === 0) {
       return res.status(404).json({ success: false, message: "User not found." });
     }
@@ -133,9 +159,16 @@ exports.registerFace = async (req, res) => {
     }
 
     // 2) One account per face: the same person cannot register on a second account.
-    const others = (await loadRegisteredFaces()).filter((u) => Number(u.id) !== Number(req.user.id));
+    const others = (await loadRegisteredFaces()).filter(
+      (u) => Number(u.id) !== Number(req.user.id)
+    );
     for (const other of others) {
-      if (bestMatch(list, other.samples) >= SAME_FACE_THRESHOLD) {
+      const score = bestMatch(list, other.samples);
+      // Helpful while tuning the threshold. Remove later if you like.
+      console.log(
+        `[face] register compare user#${req.user.id} vs ${other.name} (#${other.id}): ${score.toFixed(3)} (threshold ${SAME_FACE_THRESHOLD})`
+      );
+      if (score >= SAME_FACE_THRESHOLD) {
         return res.status(409).json({
           success: false,
           message: `This face is already registered to ${other.name} (${other.role}, ${other.store_name || "no store"}). Ask the Admin to reset that face or edit that account instead.`,
@@ -191,18 +224,9 @@ exports.getStoreDescriptors = async (req, res) => {
 
     const staff = [];
     for (const r of rows) {
-      try {
-        const parsed = JSON.parse(r.face_descriptor);
-        let descriptors = [];
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // New format: array of samples. Old format: one flat array.
-          descriptors = Array.isArray(parsed[0]) ? parsed : [parsed];
-        }
-        if (descriptors.length > 0) {
-          staff.push({ user_id: r.user_id, name: r.name, role: r.role, descriptors });
-        }
-      } catch (e) {
-        // skip malformed
+      const descriptors = parseDescriptors(r.face_descriptor);
+      if (descriptors.length > 0) {
+        staff.push({ user_id: r.user_id, name: r.name, role: r.role, descriptors });
       }
     }
 
@@ -216,21 +240,30 @@ exports.getStoreDescriptors = async (req, res) => {
 // ========================================
 // GET /api/face/duplicates   (Admin only)
 // Pairs of accounts that hold the same person's face.
+// Also returns every pair's score (all_scores) so you can pick a good threshold.
 // ========================================
 exports.getDuplicates = async (req, res) => {
   try {
     const faces = await loadRegisteredFaces();
     const pairs = [];
+    const allScores = [];
+    const pick = ({ id, name, role, store_name }) => ({ id, name, role, store_name });
+
     for (let i = 0; i < faces.length; i += 1) {
       for (let j = i + 1; j < faces.length; j += 1) {
-        const score = bestMatch(faces[i].samples, faces[j].samples);
+        const score = Number(bestMatch(faces[i].samples, faces[j].samples).toFixed(3));
+        allScores.push({ a: faces[i].name, b: faces[j].name, score });
         if (score >= SAME_FACE_THRESHOLD) {
-          const pick = ({ id, name, role, store_name }) => ({ id, name, role, store_name });
-          pairs.push({ a: pick(faces[i]), b: pick(faces[j]), score: Number(score.toFixed(2)) });
+          pairs.push({ a: pick(faces[i]), b: pick(faces[j]), score });
         }
       }
     }
-    return res.json({ success: true, pairs });
+    return res.json({
+      success: true,
+      threshold: SAME_FACE_THRESHOLD,
+      pairs,
+      all_scores: allScores,
+    });
   } catch (error) {
     console.error("Face Duplicates Error:", error);
     return res.status(500).json({ success: false, message: error.message });
