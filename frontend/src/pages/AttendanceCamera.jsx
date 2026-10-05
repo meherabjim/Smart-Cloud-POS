@@ -10,8 +10,9 @@ import { toast } from "../components/Toast";
 const SHIFT_START_HOUR = 9;      // shop opens 9:00
 const SHIFT_START_MINUTE = 0;
 const GRACE_MINUTES = 15;        // after 9:15 = Late
-const MATCH_THRESHOLD = 0.6;     // higher = stricter (0.5–0.7)
-const MATCH_MARGIN = 0.06;       // best must beat 2nd best by this much
+const MATCH_THRESHOLD = 0.85;    // cosine similarity, higher = stricter. Tune using the score shown on screen
+const MATCH_MARGIN = 0.05;       // best must beat 2nd best by this much (only when 2+ staff are registered)
+const CONFIRM_FRAMES = 3;        // same person must match in this many scans in a row
 const COOLDOWN_MS = 60000;       // don't re-mark same person within 1 min
 const SCAN_EVERY_MS = 900;       // how often to scan a frame
 
@@ -51,6 +52,7 @@ function AttendanceCamera({ user, activeStoreId }) {
   const autoStartedRef = useRef(false);
   const cooldownRef = useRef({}); // user_id -> last mark time
   const markedTodayRef = useRef(new Set()); // user_ids already marked today
+  const streakRef = useRef({ id: null, count: 0 }); // consecutive matches of the same person
 
   const [known, setKnown] = useState([]); // [{user_id,name,descriptors}]
   const [modelLoading, setModelLoading] = useState(true);
@@ -122,7 +124,7 @@ function AttendanceCamera({ user, activeStoreId }) {
 
   const markPresent = useCallback(
     async (matched) => {
-      // Already marked today → keep the FIRST mark, don't overwrite the time.
+      // Already marked today -> keep the FIRST mark, don't overwrite the time.
       if (markedTodayRef.current.has(matched.user_id)) {
         setLastMark({ name: `${matched.name} — already marked today`, status: "already" });
         return;
@@ -163,37 +165,54 @@ function AttendanceCamera({ user, activeStoreId }) {
     busyRef.current = true;
     try {
       const found = await getFaceDescriptor(videoRef.current);
-      if (found && known.length > 0) {
-        let best = null;
-        let bestScore = -1;
-        let secondScore = -1;
-        for (const k of known) {
-          // Each staff can have several saved samples — take the closest.
-          const list = k.descriptors || (k.descriptor ? [k.descriptor] : []);
-          let s = -1;
-          for (const d of list) {
-            const c = cosine(found.descriptor, d);
-            if (c > s) s = c;
-          }
-          if (s > bestScore) {
-            secondScore = bestScore;
-            bestScore = s;
-            best = k;
-          } else if (s > secondScore) {
-            secondScore = s;
-          }
-        }
-        const scoreTxt = bestScore.toFixed(2);
-        if (best && bestScore >= MATCH_THRESHOLD && bestScore - secondScore >= MATCH_MARGIN) {
-          markPresent(best);
-        } else {
-          setLastMark({
-            name: best ? `Not sure — ${best.name}? (${scoreTxt})` : "Face not recognised",
-            status: "none",
-          });
-        }
-      } else if (found) {
+
+      // No face in this frame -> reset the confirmation streak.
+      if (!found) {
+        streakRef.current = { id: null, count: 0 };
+        return;
+      }
+
+      if (known.length === 0) {
         setLastMark({ name: "No staff face registered in this store", status: "none" });
+        return;
+      }
+
+      // Score per staff = average of their top 3 sample scores
+      // (same idea as the registration check, so one lucky sample can't match).
+      const scored = known
+        .map((k) => {
+          const list = k.descriptors || (k.descriptor ? [k.descriptor] : []);
+          const top = list
+            .map((d) => cosine(found.descriptor, d))
+            .sort((a, b) => b - a)
+            .slice(0, 3);
+          const avg = top.length ? top.reduce((s, v) => s + v, 0) / top.length : -1;
+          return { k, score: avg };
+        })
+        .sort((a, b) => b.score - a.score);
+
+      const best = scored[0];
+      const second = scored[1];
+      // With only one registered staff there is no 2nd score, so skip the margin check.
+      const marginOk = !second || best.score - second.score >= MATCH_MARGIN;
+      const scoreTxt = best.score.toFixed(2);
+
+      if (best.score >= MATCH_THRESHOLD && marginOk) {
+        const s = streakRef.current;
+        streakRef.current = {
+          id: best.k.user_id,
+          count: s.id === best.k.user_id ? s.count + 1 : 1,
+        };
+
+        if (streakRef.current.count >= CONFIRM_FRAMES) {
+          streakRef.current = { id: null, count: 0 };
+          markPresent(best.k);
+        } else {
+          setLastMark({ name: `Verifying ${best.k.name}… (${scoreTxt})`, status: "verifying" });
+        }
+      } else {
+        streakRef.current = { id: null, count: 0 };
+        setLastMark({ name: `Face not recognised (${scoreTxt})`, status: "none" });
       }
     } catch (e) {
       // ignore per-frame errors
@@ -212,6 +231,7 @@ function AttendanceCamera({ user, activeStoreId }) {
       streamRef.current = null;
     }
     if (videoRef.current) videoRef.current.srcObject = null;
+    streakRef.current = { id: null, count: 0 };
     setRunning(false);
     setLastMark(null);
   }, []);
@@ -301,10 +321,14 @@ function AttendanceCamera({ user, activeStoreId }) {
   const notYet = today.filter((s) => !s.status).length;
 
   const camState = modelLoading ? "loading" : starting ? "starting" : running ? "on" : "off";
+
+  // Messages that show only their text (no "— status" suffix)
+  const isInfoOnly = (s) => s === "none" || s === "already" || s === "verifying";
+
   const resultClass = lastMark
     ? lastMark.status === "none"
       ? "bad"
-      : lastMark.status === "already"
+      : lastMark.status === "already" || lastMark.status === "verifying"
       ? "info"
       : lastMark.status === "Late"
       ? "late"
@@ -412,12 +436,18 @@ function AttendanceCamera({ user, activeStoreId }) {
             {lastMark && running && (
               <div className={`cam-result ${resultClass}`}>
                 <Icon
-                  name={lastMark.status === "none" ? "alert" : lastMark.status === "already" ? "info" : "check"}
+                  name={
+                    lastMark.status === "none"
+                      ? "alert"
+                      : lastMark.status === "already" || lastMark.status === "verifying"
+                      ? "info"
+                      : "check"
+                  }
                   size={18}
                   strokeWidth={2.4}
                 />
                 <span>
-                  {lastMark.status === "none" || lastMark.status === "already"
+                  {isInfoOnly(lastMark.status)
                     ? lastMark.name
                     : `${lastMark.name} — ${lastMark.status}`}
                 </span>
